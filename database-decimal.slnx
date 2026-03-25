@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DatabaseDecimal/DatabaseDecimal.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DatabaseDecimal.Tests/DatabaseDecimal.Tests.csproj" />
+  </Folder>
+</Solution>
