@@ -460,7 +460,7 @@ public static class DecimalText
     {
         Span<char> chars = stackalloc char[len];
         for (int i = 0; i < len; i++) chars[i] = (char)ascii[i];
-        return new string(chars);
+        return chars.ToString();
     }
 
     // ================================================================

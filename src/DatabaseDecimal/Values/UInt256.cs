@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace DatabaseDecimal.Values;
@@ -46,13 +45,13 @@ public readonly struct UInt256 : IEquatable<UInt256>, IComparable<UInt256>
     {
         ulong upper = (ulong)(value >>> 64);
         if (upper != 0)
-            return BitOperations.LeadingZeroCount(upper);
-        return 64 + BitOperations.LeadingZeroCount((ulong)value);
+            return MathCompat.LeadingZeroCount(upper);
+        return 64 + MathCompat.LeadingZeroCount((ulong)value);
     }
 
     // ----------------------------------------------------------------
     // Widening multiply: UInt128 * UInt128 -> UInt256
-    // Uses the FOIL method with Math.BigMul(ulong, ulong, out ulong).
+    // Uses the FOIL method with a 64x64 -> 128 multiplication primitive.
     // ----------------------------------------------------------------
 
     public static UInt256 BigMul(UInt128 left, UInt128 right)
@@ -63,10 +62,10 @@ public readonly struct UInt256 : IEquatable<UInt256>, IComparable<UInt256>
         ulong bh = (ulong)(right >>> 64);
 
         // Four 64x64 -> 128-bit partial products
-        ulong p00_hi = Math.BigMul(al, bl, out ulong p00_lo);
-        ulong p01_hi = Math.BigMul(ah, bl, out ulong p01_lo);
-        ulong p10_hi = Math.BigMul(al, bh, out ulong p10_lo);
-        ulong p11_hi = Math.BigMul(ah, bh, out ulong p11_lo);
+        ulong p00_hi = MathCompat.BigMul64(al, bl, out ulong p00_lo);
+        ulong p01_hi = MathCompat.BigMul64(ah, bl, out ulong p01_lo);
+        ulong p10_hi = MathCompat.BigMul64(al, bh, out ulong p10_lo);
+        ulong p11_hi = MathCompat.BigMul64(ah, bh, out ulong p11_lo);
 
         // Accumulate middle terms with carries
         UInt128 t = new UInt128(p01_hi, p01_lo) + p00_hi;
@@ -279,7 +278,7 @@ public readonly struct UInt256 : IEquatable<UInt256>, IComparable<UInt256>
             remaining = q;
         }
 
-        return new string(buffer[pos..]);
+        return buffer.Slice(pos).ToString();
     }
 
     // ----------------------------------------------------------------

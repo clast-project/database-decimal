@@ -7,8 +7,8 @@ namespace DatabaseDecimal.Arithmetic;
 /// </summary>
 internal static class PowersOf10
 {
-    public static ReadOnlySpan<int> Int32 =>
-    [
+    private static readonly int[] s_int32 =
+    {
         1,
         10,
         100,
@@ -19,10 +19,12 @@ internal static class PowersOf10
         10_000_000,
         100_000_000,
         1_000_000_000, // 10^9
-    ];
+    };
 
-    public static ReadOnlySpan<long> Int64 =>
-    [
+    public static ReadOnlySpan<int> Int32 => s_int32;
+
+    private static readonly long[] s_int64 =
+    {
         1L,
         10L,
         100L,
@@ -42,7 +44,9 @@ internal static class PowersOf10
         10_000_000_000_000_000L,
         100_000_000_000_000_000L,
         1_000_000_000_000_000_000L, // 10^18
-    ];
+    };
+
+    public static ReadOnlySpan<long> Int64 => s_int64;
 
     private static readonly Int128[] s_int128 = ComputeInt128Powers();
 

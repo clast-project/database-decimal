@@ -79,7 +79,7 @@ public class DecimalTextFormatTests
         Span<char> buf = stackalloc char[20];
 
         Assert.True(DecimalText.TryFormat(value, type, buf, out int written));
-        Assert.Equal("123.45", new string(buf[..written]));
+        Assert.Equal("123.45", buf.Slice(0, written).ToString());
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class DecimalTextFormatTests
 
         Assert.True(DecimalText.TryFormat(value, type, buf, out int written));
         Assert.Equal(6, written);
-        Assert.Equal("123.45", new string(buf[..written]));
+        Assert.Equal("123.45", buf.Slice(0, written).ToString());
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class DecimalTextFormatTests
         Span<char> buf = stackalloc char[20];
 
         Assert.True(DecimalText.TryFormat(value, type, buf, out int written));
-        Assert.Equal("42.00", new string(buf[..written]));
+        Assert.Equal("42.00", buf.Slice(0, written).ToString());
     }
 
     // ----------------------------------------------------------------
@@ -128,7 +128,7 @@ public class DecimalTextFormatTests
         Span<byte> buf = stackalloc byte[20];
 
         Assert.True(DecimalText.TryFormat(value, type, buf, out int written));
-        Assert.Equal("123.45", Encoding.ASCII.GetString(buf[..written]));
+        Assert.Equal("123.45", Encoding.ASCII.GetString(buf.Slice(0, written).ToArray()));
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class DecimalTextFormatTests
         Span<byte> buf = stackalloc byte[20];
 
         Assert.True(DecimalText.TryFormat(value, type, buf, out int written));
-        Assert.Equal("-42.00", Encoding.ASCII.GetString(buf[..written]));
+        Assert.Equal("-42.00", Encoding.ASCII.GetString(buf.Slice(0, written).ToArray()));
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class DecimalTextFormatTests
         Span<byte> buf = stackalloc byte[10];
 
         Assert.True(DecimalText.TryFormat(value, type, buf, out int written));
-        Assert.Equal("42", Encoding.ASCII.GetString(buf[..written]));
+        Assert.Equal("42", Encoding.ASCII.GetString(buf.Slice(0, written).ToArray()));
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class DecimalTextFormatTests
         Span<byte> buf = stackalloc byte[10];
 
         Assert.True(DecimalText.TryFormat(value, type, buf, out int written));
-        Assert.Equal("0.000", Encoding.ASCII.GetString(buf[..written]));
+        Assert.Equal("0.000", Encoding.ASCII.GetString(buf.Slice(0, written).ToArray()));
     }
 
     // ----------------------------------------------------------------
