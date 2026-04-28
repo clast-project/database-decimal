@@ -8,8 +8,16 @@ on:
 jobs:
   release:
     runs-on: windows-latest
+
+    permissions:
+      contents: write   # required for creating GitHub Releases
+
     steps:
+      - name: Checkout    
       - uses: actions/checkout@v4
+        with:
+          # SourceLink wants full history.
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -20,15 +28,41 @@ jobs:
 
       - name: Derive version from tag
         id: version
-        shell: bash
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF -replace '^refs/tags/v', ''
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Releasing version $version"
 
       - name: Restore
-        run: dotnet restore src/Clast.DatabaseDecimal/Clast.DatabaseDecimal.csproj
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
 
       - name: Pack
-        run: dotnet pack src/Clast.DatabaseDecimal/Clast.DatabaseDecimal.csproj -c Release -p:Version=${{ steps.version.outputs.version }} -o artifacts
+        run: dotnet pack src/Clast.DatabaseDecimal/Clast.DatabaseDecimal.csproj --no-build --configuration Release -p:Version=${{ steps.version.outputs.version }}
 
       - name: Push to NuGet
-        shell: bash
-        run: dotnet nuget push "artifacts/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        shell: pwsh
+        run: |
+          if (-not $env:NUGET_API_KEY) {
+            Write-Error "NUGET_API_KEY secret is not configured."
+            exit 1
+          }
+          dotnet nuget push "src/Clast.DatabaseDecimal/bin/Release/Clast.DatabaseDecimal.${{ steps.version.outputs.version }}.nupkg" --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            "src/Clast.DatabaseDecimal/bin/Release/Clast.DatabaseDecimal.${{ steps.version.outputs.version }}.nupkg" `
+            "src/Clast.DatabaseDecimal/bin/Release/Clast.DatabaseDecimal.${{ steps.version.outputs.version }}.snupkg" `
+            --generate-notes
