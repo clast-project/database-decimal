@@ -30,4 +30,5 @@ jobs:
         run: dotnet pack src/Clast.DatabaseDecimal/Clast.DatabaseDecimal.csproj -c Release -p:Version=${{ steps.version.outputs.version }} -o artifacts
 
       - name: Push to NuGet
+        shell: bash
         run: dotnet nuget push "artifacts/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
