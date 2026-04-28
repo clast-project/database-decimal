@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.Globalization;
+using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using DatabaseDecimal.Arithmetic;
 
@@ -8,7 +10,7 @@ namespace DatabaseDecimal.Values;
 /// A 128-bit fixed-point decimal mantissa.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct Decimal128 : IEquatable<Decimal128>, IComparable<Decimal128>
+public readonly struct Decimal128 : IEquatable<Decimal128>, IComparable<Decimal128>, IComparable
 {
     public readonly Int128 Mantissa;
 
@@ -16,7 +18,7 @@ public readonly struct Decimal128 : IEquatable<Decimal128>, IComparable<Decimal1
 
     public static Decimal128 Zero => default;
 
-    public static Decimal128 FromUnscaled(Int128 value, byte scale)
+    public static Decimal128 FromUnscaled(Int128 value)
     {
         return new Decimal128(value);
     }
@@ -48,6 +50,22 @@ public readonly struct Decimal128 : IEquatable<Decimal128>, IComparable<Decimal1
     public override bool Equals(object? obj) => obj is Decimal128 other && Equals(other);
     public override int GetHashCode() => Mantissa.GetHashCode();
     public int CompareTo(Decimal128 other) => Mantissa.CompareTo(other.Mantissa);
+
+    public int CompareTo(object? obj) => obj switch
+    {
+        null => 1,
+        Decimal128 other => CompareTo(other),
+        _ => throw new ArgumentException($"Object must be of type {nameof(Decimal128)}.", nameof(obj)),
+    };
+
+    /// <inheritdoc cref="Decimal32.StableHash64"/>
+    public ulong StableHash64()
+    {
+        Span<byte> buffer = stackalloc byte[16];
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer, (ulong)Mantissa);
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(8), (ulong)(Mantissa >>> 64));
+        return XxHash3.HashToUInt64(buffer);
+    }
 
     public static bool operator ==(Decimal128 left, Decimal128 right) => left.Mantissa == right.Mantissa;
     public static bool operator !=(Decimal128 left, Decimal128 right) => left.Mantissa != right.Mantissa;

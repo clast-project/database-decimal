@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using DatabaseDecimal.Arithmetic;
 
@@ -7,7 +9,7 @@ namespace DatabaseDecimal.Values;
 /// A 256-bit fixed-point decimal mantissa.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct Decimal256 : IEquatable<Decimal256>, IComparable<Decimal256>
+public readonly struct Decimal256 : IEquatable<Decimal256>, IComparable<Decimal256>, IComparable
 {
     public readonly Int256 Mantissa;
 
@@ -15,7 +17,7 @@ public readonly struct Decimal256 : IEquatable<Decimal256>, IComparable<Decimal2
 
     public static Decimal256 Zero => default;
 
-    public static Decimal256 FromUnscaled(Int256 value, byte scale)
+    public static Decimal256 FromUnscaled(Int256 value)
     {
         return new Decimal256(value);
     }
@@ -48,6 +50,25 @@ public readonly struct Decimal256 : IEquatable<Decimal256>, IComparable<Decimal2
     public override bool Equals(object? obj) => obj is Decimal256 other && Equals(other);
     public override int GetHashCode() => Mantissa.GetHashCode();
     public int CompareTo(Decimal256 other) => Mantissa.CompareTo(other.Mantissa);
+
+    public int CompareTo(object? obj) => obj switch
+    {
+        null => 1,
+        Decimal256 other => CompareTo(other),
+        _ => throw new ArgumentException($"Object must be of type {nameof(Decimal256)}.", nameof(obj)),
+    };
+
+    /// <inheritdoc cref="Decimal32.StableHash64"/>
+    public ulong StableHash64()
+    {
+        Span<byte> buffer = stackalloc byte[32];
+        UInt256 m = (UInt256)Mantissa;
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer, (ulong)m);
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(8), (ulong)(m >>> 64));
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(16), (ulong)(m >>> 128));
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(24), (ulong)(m >>> 192));
+        return XxHash3.HashToUInt64(buffer);
+    }
 
     public static bool operator ==(Decimal256 left, Decimal256 right) => left.Mantissa == right.Mantissa;
     public static bool operator !=(Decimal256 left, Decimal256 right) => left.Mantissa != right.Mantissa;

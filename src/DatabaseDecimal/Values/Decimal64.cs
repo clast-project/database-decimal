@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.Globalization;
+using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using DatabaseDecimal.Arithmetic;
 
@@ -8,7 +10,7 @@ namespace DatabaseDecimal.Values;
 /// A 64-bit fixed-point decimal mantissa.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct Decimal64 : IEquatable<Decimal64>, IComparable<Decimal64>
+public readonly struct Decimal64 : IEquatable<Decimal64>, IComparable<Decimal64>, IComparable
 {
     public readonly long Mantissa;
 
@@ -16,7 +18,7 @@ public readonly struct Decimal64 : IEquatable<Decimal64>, IComparable<Decimal64>
 
     public static Decimal64 Zero => default;
 
-    public static Decimal64 FromUnscaled(long value, byte scale)
+    public static Decimal64 FromUnscaled(long value)
     {
         return new Decimal64(value);
     }
@@ -48,6 +50,21 @@ public readonly struct Decimal64 : IEquatable<Decimal64>, IComparable<Decimal64>
     public override bool Equals(object? obj) => obj is Decimal64 other && Equals(other);
     public override int GetHashCode() => Mantissa.GetHashCode();
     public int CompareTo(Decimal64 other) => Mantissa.CompareTo(other.Mantissa);
+
+    public int CompareTo(object? obj) => obj switch
+    {
+        null => 1,
+        Decimal64 other => CompareTo(other),
+        _ => throw new ArgumentException($"Object must be of type {nameof(Decimal64)}.", nameof(obj)),
+    };
+
+    /// <inheritdoc cref="Decimal32.StableHash64"/>
+    public ulong StableHash64()
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(long)];
+        BinaryPrimitives.WriteInt64LittleEndian(buffer, Mantissa);
+        return XxHash3.HashToUInt64(buffer);
+    }
 
     public static bool operator ==(Decimal64 left, Decimal64 right) => left.Mantissa == right.Mantissa;
     public static bool operator !=(Decimal64 left, Decimal64 right) => left.Mantissa != right.Mantissa;

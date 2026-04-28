@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.Globalization;
+using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using DatabaseDecimal.Arithmetic;
 
@@ -10,7 +12,7 @@ namespace DatabaseDecimal.Values;
 /// Mantissa / 10^scale, where scale comes from the associated DecimalType.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct Decimal32 : IEquatable<Decimal32>, IComparable<Decimal32>
+public readonly struct Decimal32 : IEquatable<Decimal32>, IComparable<Decimal32>, IComparable
 {
     public readonly int Mantissa;
 
@@ -19,10 +21,10 @@ public readonly struct Decimal32 : IEquatable<Decimal32>, IComparable<Decimal32>
     public static Decimal32 Zero => default;
 
     /// <summary>
-    /// Creates a Decimal32 from an unscaled integer value and a target scale.
-    /// E.g., FromUnscaled(123, scale=2) represents 1.23.
+    /// Wraps a raw mantissa value. The associated DecimalType supplies the scale,
+    /// so e.g. mantissa 123 represents 1.23 when paired with scale 2.
     /// </summary>
-    public static Decimal32 FromUnscaled(int value, byte scale)
+    public static Decimal32 FromUnscaled(int value)
     {
         return new Decimal32(value);
     }
@@ -61,6 +63,26 @@ public readonly struct Decimal32 : IEquatable<Decimal32>, IComparable<Decimal32>
     public override bool Equals(object? obj) => obj is Decimal32 other && Equals(other);
     public override int GetHashCode() => Mantissa.GetHashCode();
     public int CompareTo(Decimal32 other) => Mantissa.CompareTo(other.Mantissa);
+
+    public int CompareTo(object? obj) => obj switch
+    {
+        null => 1,
+        Decimal32 other => CompareTo(other),
+        _ => throw new ArgumentException($"Object must be of type {nameof(Decimal32)}.", nameof(obj)),
+    };
+
+    /// <summary>
+    /// Returns a 64-bit hash of the mantissa that is stable across processes
+    /// and runtime versions. Suitable for sharding, persistence, or
+    /// content-addressable storage. Honors the same equality contract as
+    /// <see cref="GetHashCode"/>: equal values (same DecimalType) hash equal.
+    /// </summary>
+    public ulong StableHash64()
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(buffer, Mantissa);
+        return XxHash3.HashToUInt64(buffer);
+    }
 
     public static bool operator ==(Decimal32 left, Decimal32 right) => left.Mantissa == right.Mantissa;
     public static bool operator !=(Decimal32 left, Decimal32 right) => left.Mantissa != right.Mantissa;
