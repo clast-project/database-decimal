@@ -319,4 +319,262 @@ public class SpanAddKernelTests
         Int256 expected = (Int256)(Int128.MaxValue / 2) + (Int256)(Int128.MaxValue / 2);
         Assert.Equal(expected, result[0]);
     }
+
+    // ----------------------------------------------------------------
+    // SIMD chunked-path coverage. Existing tests use 1-3 element spans
+    // which all fall into the scalar tail (Vector<int>.Count is 8 on
+    // AVX2). These tests use larger lengths and lengths that are not
+    // multiples of any specific vector width, so both the SIMD chunk
+    // loop and the scalar tail are exercised on any hardware.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void Add_32Bit_SameScale_SimdChunkedAndTail()
+    {
+        var type = DecimalType.Numeric(9, 2);
+        int n = 23;
+        int[] left = new int[n];
+        int[] right = new int[n];
+        int[] expected = new int[n];
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = i * 100;
+            right[i] = i * 50;
+            expected[i] = i * 150;
+        }
+        int[] result = new int[n];
+        SpanAddKernel.Add(left, type, right, type, result, type);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Add_64Bit_SameScale_SimdChunkedAndTail()
+    {
+        var type = DecimalType.Numeric(18, 3);
+        int n = 19;
+        long[] left = new long[n];
+        long[] right = new long[n];
+        long[] expected = new long[n];
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = (long)i * 1_000_000_000L;
+            right[i] = (long)i * 500_000_000L;
+            expected[i] = (long)i * 1_500_000_000L;
+        }
+        long[] result = new long[n];
+        SpanAddKernel.Add(left, type, right, type, result, type);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Subtract_32Bit_SameScale_SimdChunkedAndTail()
+    {
+        var type = DecimalType.Numeric(9, 2);
+        int n = 23;
+        int[] left = new int[n];
+        int[] right = new int[n];
+        int[] expected = new int[n];
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = i * 1000;
+            right[i] = i * 300;
+            expected[i] = i * 700;
+        }
+        int[] result = new int[n];
+        SpanAddKernel.Subtract(left, type, right, type, result, type);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Subtract_64Bit_SameScale_SimdChunkedAndTail()
+    {
+        var type = DecimalType.Numeric(18, 3);
+        int n = 19;
+        long[] left = new long[n];
+        long[] right = new long[n];
+        long[] expected = new long[n];
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = (long)i * 1_000_000_000L;
+            right[i] = (long)i * 300_000_000L;
+            expected[i] = (long)i * 700_000_000L;
+        }
+        long[] result = new long[n];
+        SpanAddKernel.Subtract(left, type, right, type, result, type);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Add_32Bit_OverflowInSimdChunk_Throws()
+    {
+        var type = DecimalType.Numeric(9, 0);
+        int n = 16;
+        int[] left = new int[n];
+        int[] right = new int[n];
+        for (int i = 0; i < n; i++) { left[i] = 1; right[i] = 1; }
+        // Overflow placed in the second SIMD chunk (index 10 on AVX2, where Vector<int>.Count=8).
+        left[10] = int.MaxValue;
+        right[10] = 1;
+        Assert.Throws<OverflowException>(() =>
+            SpanAddKernel.Add(left, type, right, type, new int[n], type));
+    }
+
+    [Fact]
+    public void Subtract_32Bit_OverflowInSimdChunk_Throws()
+    {
+        var type = DecimalType.Numeric(9, 0);
+        int n = 16;
+        int[] left = new int[n];
+        int[] right = new int[n];
+        for (int i = 0; i < n; i++) { left[i] = 1; right[i] = 1; }
+        left[5] = int.MinValue;
+        right[5] = 1;
+        Assert.Throws<OverflowException>(() =>
+            SpanAddKernel.Subtract(left, type, right, type, new int[n], type));
+    }
+
+    [Fact]
+    public void Add_64Bit_OverflowInSimdChunk_Throws()
+    {
+        var type = DecimalType.Numeric(18, 0);
+        int n = 8;
+        long[] left = new long[n];
+        long[] right = new long[n];
+        for (int i = 0; i < n; i++) { left[i] = 1; right[i] = 1; }
+        left[3] = long.MaxValue;
+        right[3] = 1;
+        Assert.Throws<OverflowException>(() =>
+            SpanAddKernel.Add(left, type, right, type, new long[n], type));
+    }
+
+    [Fact]
+    public void AddWiden_32To64_SimdChunkedAndTail_PreservesElementOrder()
+    {
+        // Vector.Widen splits each Vector<int> into lower/upper Vector<long>
+        // halves; this test verifies output[i] == (long)left[i] + right[i]
+        // for every index, catching any swap of the low/high writes.
+        var type = DecimalType.Numeric(9, 2);
+        var resultType = DecimalType.Numeric(10, 2);
+        int n = 23;
+        int[] left = new int[n];
+        int[] right = new int[n];
+        long[] expected = new long[n];
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = int.MaxValue - i;
+            right[i] = int.MaxValue - 2 * i;
+            expected[i] = (long)left[i] + right[i];
+        }
+        long[] result = new long[n];
+        SpanAddKernel.AddWiden(left, type, right, type, result, resultType);
+        Assert.Equal(expected, result);
+    }
+
+    // ----------------------------------------------------------------
+    // Broadcast (column + scalar / column - scalar / scalar - column)
+    // SIMD chunked-path coverage. The broadcast helpers load the scalar
+    // into a Vector<T> once and reuse it across the chunk loop.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void Add_32Bit_Broadcast_SimdChunkedAndTail()
+    {
+        var type = DecimalType.Numeric(9, 2);
+        int n = 23;
+        int[] left = new int[n];
+        int[] expected = new int[n];
+        int scalar = 777;
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = i * 100;
+            expected[i] = i * 100 + scalar;
+        }
+        int[] result = new int[n];
+        SpanAddKernel.Add(left, type, scalar, type, result, type);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Add_64Bit_Broadcast_SimdChunkedAndTail()
+    {
+        var type = DecimalType.Numeric(18, 3);
+        int n = 19;
+        long[] left = new long[n];
+        long[] expected = new long[n];
+        long scalar = 1_234_567_890L;
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = (long)i * 1_000_000_000L;
+            expected[i] = left[i] + scalar;
+        }
+        long[] result = new long[n];
+        SpanAddKernel.Add(left, type, scalar, type, result, type);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Subtract_32Bit_BroadcastColumnScalar_SimdChunkedAndTail()
+    {
+        var type = DecimalType.Numeric(9, 2);
+        int n = 23;
+        int[] left = new int[n];
+        int[] expected = new int[n];
+        int scalar = 333;
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = i * 500;
+            expected[i] = i * 500 - scalar;
+        }
+        int[] result = new int[n];
+        SpanAddKernel.Subtract(left, type, scalar, type, result, type);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Subtract_32Bit_BroadcastScalarColumn_SimdChunkedAndTail()
+    {
+        var type = DecimalType.Numeric(9, 2);
+        int n = 23;
+        int[] right = new int[n];
+        int[] expected = new int[n];
+        int scalar = 100_000;
+        for (int i = 0; i < n; i++)
+        {
+            right[i] = i * 300;
+            expected[i] = scalar - i * 300;
+        }
+        int[] result = new int[n];
+        SpanAddKernel.Subtract(scalar, type, right, type, result, type);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Subtract_64Bit_BroadcastScalarColumn_SimdChunkedAndTail()
+    {
+        var type = DecimalType.Numeric(18, 3);
+        int n = 19;
+        long[] right = new long[n];
+        long[] expected = new long[n];
+        long scalar = 999_999_999_999L;
+        for (int i = 0; i < n; i++)
+        {
+            right[i] = (long)i * 100_000_000L;
+            expected[i] = scalar - right[i];
+        }
+        long[] result = new long[n];
+        SpanAddKernel.Subtract(scalar, type, right, type, result, type);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Add_32Bit_Broadcast_OverflowInSimdChunk_Throws()
+    {
+        var type = DecimalType.Numeric(9, 0);
+        int n = 16;
+        int[] left = new int[n];
+        for (int i = 0; i < n; i++) left[i] = 1;
+        left[10] = int.MaxValue;
+        Assert.Throws<OverflowException>(() =>
+            SpanAddKernel.Add(left, type, 1, type, new int[n], type));
+    }
 }

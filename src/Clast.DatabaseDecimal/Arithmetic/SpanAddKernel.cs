@@ -1,7 +1,9 @@
 // Copyright (c) clast-project. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
+using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Clast.DatabaseDecimal.Values;
 
 namespace Clast.DatabaseDecimal.Arithmetic;
@@ -30,8 +32,7 @@ public static class SpanAddKernel
 
         if (ld == 0 && rd == 0)
         {
-            for (int i = 0; i < left.Length; i++)
-                result[i] = checked(left[i] + right[i]);
+            AddSameScale32(left, right, result);
         }
         else
         {
@@ -52,8 +53,7 @@ public static class SpanAddKernel
 
         if (ld == 0 && rd == 0)
         {
-            for (int i = 0; i < left.Length; i++)
-                result[i] = checked(left[i] + right[i]);
+            AddSameScale64(left, right, result);
         }
         else
         {
@@ -120,8 +120,15 @@ public static class SpanAddKernel
         int ld = resultType.Scale - leftType.Scale;
         int rd = resultType.Scale - rightType.Scale;
 
-        for (int i = 0; i < left.Length; i++)
-            result[i] = checked(Widen32To64(left[i], ld) + Widen32To64(right[i], rd));
+        if (ld == 0 && rd == 0)
+        {
+            AddWidenSameScale32To64(left, right, result);
+        }
+        else
+        {
+            for (int i = 0; i < left.Length; i++)
+                result[i] = checked(Widen32To64(left[i], ld) + Widen32To64(right[i], rd));
+        }
     }
 
     public static void AddWiden(
@@ -168,8 +175,7 @@ public static class SpanAddKernel
 
         if (ld == 0)
         {
-            for (int i = 0; i < left.Length; i++)
-                result[i] = checked(left[i] + rescaledRight);
+            AddBroadcastSameScale32(left, rescaledRight, result);
         }
         else
         {
@@ -190,8 +196,7 @@ public static class SpanAddKernel
 
         if (ld == 0)
         {
-            for (int i = 0; i < left.Length; i++)
-                result[i] = checked(left[i] + rescaledRight);
+            AddBroadcastSameScale64(left, rescaledRight, result);
         }
         else
         {
@@ -260,8 +265,7 @@ public static class SpanAddKernel
 
         if (ld == 0 && rd == 0)
         {
-            for (int i = 0; i < left.Length; i++)
-                result[i] = checked(left[i] - right[i]);
+            SubtractSameScale32(left, right, result);
         }
         else
         {
@@ -282,8 +286,7 @@ public static class SpanAddKernel
 
         if (ld == 0 && rd == 0)
         {
-            for (int i = 0; i < left.Length; i++)
-                result[i] = checked(left[i] - right[i]);
+            SubtractSameScale64(left, right, result);
         }
         else
         {
@@ -352,8 +355,7 @@ public static class SpanAddKernel
 
         if (ld == 0)
         {
-            for (int i = 0; i < left.Length; i++)
-                result[i] = checked(left[i] - rescaledRight);
+            SubtractBroadcastColumnScalar32(left, rescaledRight, result);
         }
         else
         {
@@ -374,8 +376,7 @@ public static class SpanAddKernel
 
         if (ld == 0)
         {
-            for (int i = 0; i < left.Length; i++)
-                result[i] = checked(left[i] - rescaledRight);
+            SubtractBroadcastColumnScalar64(left, rescaledRight, result);
         }
         else
         {
@@ -444,8 +445,7 @@ public static class SpanAddKernel
 
         if (rd == 0)
         {
-            for (int i = 0; i < right.Length; i++)
-                result[i] = checked(rescaledLeft - right[i]);
+            SubtractBroadcastScalarColumn32(rescaledLeft, right, result);
         }
         else
         {
@@ -466,8 +466,7 @@ public static class SpanAddKernel
 
         if (rd == 0)
         {
-            for (int i = 0; i < right.Length; i++)
-                result[i] = checked(rescaledLeft - right[i]);
+            SubtractBroadcastScalarColumn64(rescaledLeft, right, result);
         }
         else
         {
@@ -603,4 +602,315 @@ public static class SpanAddKernel
         if (resultLen < inputLen)
             throw new ArgumentException("Result span must be at least as long as input span.");
     }
+
+    // ================================================================
+    // SIMD helpers for same-scale add/subtract on int and long mantissas,
+    // and same-scale widening add (int -> long). Vector<T> arithmetic is
+    // unchecked, so signed overflow is detected per-vector via the sign
+    // bit of ((a XOR c) AND (b XOR c))  for add and ((a XOR b) AND (a XOR c))
+    // for subtract. Any lane with the high bit set indicates overflow.
+    // ================================================================
+
+    private static void AddSameScale32(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<int> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
+        {
+            ReadOnlySpan<Vector<int>> lv = MemoryMarshal.Cast<int, Vector<int>>(left);
+            ReadOnlySpan<Vector<int>> rv = MemoryMarshal.Cast<int, Vector<int>>(right);
+            Span<Vector<int>> ov = MemoryMarshal.Cast<int, Vector<int>>(result);
+            int chunks = lv.Length;
+            Vector<int> overflow = Vector<int>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<int> a = lv[k];
+                Vector<int> b = rv[k];
+                Vector<int> c = a + b;
+                overflow |= (a ^ c) & (b ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<int>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<int>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+            result[i] = checked(left[i] + right[i]);
+    }
+
+    private static void AddSameScale64(ReadOnlySpan<long> left, ReadOnlySpan<long> right, Span<long> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<long>.Count)
+        {
+            ReadOnlySpan<Vector<long>> lv = MemoryMarshal.Cast<long, Vector<long>>(left);
+            ReadOnlySpan<Vector<long>> rv = MemoryMarshal.Cast<long, Vector<long>>(right);
+            Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
+            int chunks = lv.Length;
+            Vector<long> overflow = Vector<long>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<long> a = lv[k];
+                Vector<long> b = rv[k];
+                Vector<long> c = a + b;
+                overflow |= (a ^ c) & (b ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<long>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<long>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+            result[i] = checked(left[i] + right[i]);
+    }
+
+    private static void SubtractSameScale32(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<int> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
+        {
+            ReadOnlySpan<Vector<int>> lv = MemoryMarshal.Cast<int, Vector<int>>(left);
+            ReadOnlySpan<Vector<int>> rv = MemoryMarshal.Cast<int, Vector<int>>(right);
+            Span<Vector<int>> ov = MemoryMarshal.Cast<int, Vector<int>>(result);
+            int chunks = lv.Length;
+            Vector<int> overflow = Vector<int>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<int> a = lv[k];
+                Vector<int> b = rv[k];
+                Vector<int> c = a - b;
+                overflow |= (a ^ b) & (a ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<int>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<int>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+            result[i] = checked(left[i] - right[i]);
+    }
+
+    private static void SubtractSameScale64(ReadOnlySpan<long> left, ReadOnlySpan<long> right, Span<long> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<long>.Count)
+        {
+            ReadOnlySpan<Vector<long>> lv = MemoryMarshal.Cast<long, Vector<long>>(left);
+            ReadOnlySpan<Vector<long>> rv = MemoryMarshal.Cast<long, Vector<long>>(right);
+            Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
+            int chunks = lv.Length;
+            Vector<long> overflow = Vector<long>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<long> a = lv[k];
+                Vector<long> b = rv[k];
+                Vector<long> c = a - b;
+                overflow |= (a ^ b) & (a ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<long>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<long>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+            result[i] = checked(left[i] - right[i]);
+    }
+
+    private static void AddWidenSameScale32To64(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<long> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
+        {
+            ReadOnlySpan<Vector<int>> lv = MemoryMarshal.Cast<int, Vector<int>>(left);
+            ReadOnlySpan<Vector<int>> rv = MemoryMarshal.Cast<int, Vector<int>>(right);
+            Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
+            int chunks = lv.Length;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<int> a = lv[k];
+                Vector<int> b = rv[k];
+                Vector.Widen(a, out Vector<long> aLo, out Vector<long> aHi);
+                Vector.Widen(b, out Vector<long> bLo, out Vector<long> bHi);
+                ov[k * 2] = aLo + bLo;
+                ov[k * 2 + 1] = aHi + bHi;
+            }
+            i = chunks * Vector<int>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+            result[i] = (long)left[i] + right[i];
+    }
+
+    private static void AddBroadcastSameScale32(ReadOnlySpan<int> left, int right, Span<int> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
+        {
+            ReadOnlySpan<Vector<int>> lv = MemoryMarshal.Cast<int, Vector<int>>(left);
+            Span<Vector<int>> ov = MemoryMarshal.Cast<int, Vector<int>>(result);
+            int chunks = lv.Length;
+            Vector<int> bv = new Vector<int>(right);
+            Vector<int> overflow = Vector<int>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<int> a = lv[k];
+                Vector<int> c = a + bv;
+                overflow |= (a ^ c) & (bv ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<int>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<int>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+            result[i] = checked(left[i] + right);
+    }
+
+    private static void AddBroadcastSameScale64(ReadOnlySpan<long> left, long right, Span<long> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<long>.Count)
+        {
+            ReadOnlySpan<Vector<long>> lv = MemoryMarshal.Cast<long, Vector<long>>(left);
+            Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
+            int chunks = lv.Length;
+            Vector<long> bv = new Vector<long>(right);
+            Vector<long> overflow = Vector<long>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<long> a = lv[k];
+                Vector<long> c = a + bv;
+                overflow |= (a ^ c) & (bv ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<long>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<long>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+            result[i] = checked(left[i] + right);
+    }
+
+    private static void SubtractBroadcastColumnScalar32(ReadOnlySpan<int> left, int right, Span<int> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
+        {
+            ReadOnlySpan<Vector<int>> lv = MemoryMarshal.Cast<int, Vector<int>>(left);
+            Span<Vector<int>> ov = MemoryMarshal.Cast<int, Vector<int>>(result);
+            int chunks = lv.Length;
+            Vector<int> bv = new Vector<int>(right);
+            Vector<int> overflow = Vector<int>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<int> a = lv[k];
+                Vector<int> c = a - bv;
+                overflow |= (a ^ bv) & (a ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<int>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<int>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+            result[i] = checked(left[i] - right);
+    }
+
+    private static void SubtractBroadcastColumnScalar64(ReadOnlySpan<long> left, long right, Span<long> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<long>.Count)
+        {
+            ReadOnlySpan<Vector<long>> lv = MemoryMarshal.Cast<long, Vector<long>>(left);
+            Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
+            int chunks = lv.Length;
+            Vector<long> bv = new Vector<long>(right);
+            Vector<long> overflow = Vector<long>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<long> a = lv[k];
+                Vector<long> c = a - bv;
+                overflow |= (a ^ bv) & (a ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<long>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<long>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+            result[i] = checked(left[i] - right);
+    }
+
+    private static void SubtractBroadcastScalarColumn32(int left, ReadOnlySpan<int> right, Span<int> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && right.Length >= Vector<int>.Count)
+        {
+            ReadOnlySpan<Vector<int>> rv = MemoryMarshal.Cast<int, Vector<int>>(right);
+            Span<Vector<int>> ov = MemoryMarshal.Cast<int, Vector<int>>(result);
+            int chunks = rv.Length;
+            Vector<int> av = new Vector<int>(left);
+            Vector<int> overflow = Vector<int>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<int> b = rv[k];
+                Vector<int> c = av - b;
+                overflow |= (av ^ b) & (av ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<int>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<int>.Count;
+        }
+#endif
+        for (; i < right.Length; i++)
+            result[i] = checked(left - right[i]);
+    }
+
+    private static void SubtractBroadcastScalarColumn64(long left, ReadOnlySpan<long> right, Span<long> result)
+    {
+        int i = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && right.Length >= Vector<long>.Count)
+        {
+            ReadOnlySpan<Vector<long>> rv = MemoryMarshal.Cast<long, Vector<long>>(right);
+            Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
+            int chunks = rv.Length;
+            Vector<long> av = new Vector<long>(left);
+            Vector<long> overflow = Vector<long>.Zero;
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<long> b = rv[k];
+                Vector<long> c = av - b;
+                overflow |= (av ^ b) & (av ^ c);
+                ov[k] = c;
+            }
+            if (Vector.LessThanAny(overflow, Vector<long>.Zero))
+                ThrowOverflow();
+            i = chunks * Vector<long>.Count;
+        }
+#endif
+        for (; i < right.Length; i++)
+            result[i] = checked(left - right[i]);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowOverflow() => throw new OverflowException();
 }

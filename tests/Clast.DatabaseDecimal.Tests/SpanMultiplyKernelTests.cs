@@ -187,4 +187,55 @@ public class SpanMultiplyKernelTests
         Assert.Throws<ArgumentException>(() =>
             SpanMultiplyKernel.Multiply(new int[3], type, new int[2], type, new long[3], resultType));
     }
+
+    // ----------------------------------------------------------------
+    // SIMD chunked-path coverage for the 32x32 -> 64 no-rescale path.
+    // On AVX2 the helper processes 4 ints per vpmuldq; this test uses
+    // a length that exercises both the SIMD chunk loop and the scalar
+    // tail and verifies element-wise equality with a scalar reference.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void Multiply_32To64_SameScale_SimdChunkedAndTail()
+    {
+        var leftType = DecimalType.Numeric(4, 2);
+        var rightType = DecimalType.Numeric(3, 1);
+        // Result scale (3) equals raw scale (2+1=3), so the no-rescale SIMD path runs.
+        var resultType = DecimalType.Numeric(8, 3);
+        int n = 23;
+        int[] left = new int[n];
+        int[] right = new int[n];
+        long[] expected = new long[n];
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = 1250 + i;
+            right[i] = 35 + 2 * i;
+            expected[i] = (long)left[i] * right[i];
+        }
+        long[] result = new long[n];
+        SpanMultiplyKernel.Multiply(left, leftType, right, rightType, result, resultType);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Multiply_32To64_Broadcast_SimdChunkedAndTail()
+    {
+        // Broadcast scalar path with no rescale — exercises the vpmuldq SIMD
+        // helper with a Vector256<int> built from the scalar.
+        var leftType = DecimalType.Numeric(4, 2);
+        var rightType = DecimalType.Numeric(3, 1);
+        var resultType = DecimalType.Numeric(8, 3);
+        int n = 23;
+        int[] left = new int[n];
+        int scalar = -42;
+        long[] expected = new long[n];
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = 1250 + i;
+            expected[i] = (long)left[i] * scalar;
+        }
+        long[] result = new long[n];
+        SpanMultiplyKernel.Multiply(left, leftType, scalar, rightType, result, resultType);
+        Assert.Equal(expected, result);
+    }
 }
