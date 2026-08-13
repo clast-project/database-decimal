@@ -67,6 +67,14 @@ public class SpanAddBenchmarks
     public void Add_Int32_SameScale() =>
         SpanAddKernel.Add(_i32Left, T32S2, _i32Right, T32S2, _i32Result, T32S2);
 
+    // Same arithmetic without the result-precision pass, which is what a caller
+    // that has already proven the range — or one that scans for overflowing rows
+    // itself via DecimalRange — pays instead.
+    [Benchmark]
+    public void Add_Int32_SameScale_IgnoreOverflow() =>
+        SpanAddKernel.Add(_i32Left, T32S2, _i32Right, T32S2, _i32Result, T32S2,
+            DecimalRounding.HalfEven, DecimalOverflow.Ignore);
+
     // Mixed scales force per-element rescale-by-power-of-10.
     [Benchmark]
     public void Add_Int32_Rescale() =>

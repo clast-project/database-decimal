@@ -81,8 +81,11 @@ public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>
     public static Int128 operator checked +(Int128 left, Int128 right)
     {
         Int128 result = left + right;
-        // Signed overflow: signs of inputs match, sign of result differs.
-        if ((((left._upper ^ right._upper) & ~(left._upper ^ result._upper)) & 0x8000_0000_0000_0000UL) != 0)
+        // Signed overflow: the operands share a sign that the result does not.
+        // Both terms matter and neither may be inverted — testing the operands
+        // for *differing* signs instead inverts the check, so mixed-sign adds
+        // throw and genuine overflow slips through.
+        if ((((result._upper ^ left._upper) & ~(left._upper ^ right._upper)) & 0x8000_0000_0000_0000UL) != 0)
             throw new OverflowException();
         return result;
     }
@@ -119,7 +122,16 @@ public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>
         UInt128 ul = IsNegative(left) ? (UInt128)(-left) : (UInt128)left;
         UInt128 ur = IsNegative(right) ? (UInt128)(-right) : (UInt128)right;
 
-        UInt128 product = ul * ur;
+        // Each magnitude reaches 2^127, so their product needs 256 bits. A
+        // 128-bit multiply wraps before any range test can see it — MinValue * 2
+        // is exactly 2^128 and wraps to zero — so widen first. This borrows the
+        // library's 256-bit multiply rather than repeating the limb arithmetic.
+        Clast.DatabaseDecimal.Values.UInt256 wide =
+            Clast.DatabaseDecimal.Values.UInt256.BigMul(ul, ur);
+        if ((UInt128)(wide >>> 128) != UInt128.Zero)
+            throw new OverflowException();
+
+        UInt128 product = (UInt128)wide;
         // Overflow when bit 127 is set, except for exactly MinValue (which is -2^127).
         if (product._upper >= 0x8000_0000_0000_0000UL)
         {

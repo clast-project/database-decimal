@@ -24,7 +24,8 @@ public static class SpanAddKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
         Span<int> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -41,13 +42,17 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.RescaleByDelta32(left[i], ld, rounding)
                     + ScaleHelper.RescaleByDelta32(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Add(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -64,13 +69,17 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.RescaleByDelta64(left[i], ld, rounding)
                     + ScaleHelper.RescaleByDelta64(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Add(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -88,13 +97,17 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.RescaleByDelta128(left[i], ld, rounding)
                     + ScaleHelper.RescaleByDelta128(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Add(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -112,6 +125,9 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.RescaleByDelta256(left[i], ld, rounding)
                     + ScaleHelper.RescaleByDelta256(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -122,7 +138,8 @@ public static class SpanAddKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -139,13 +156,17 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.WidenByDelta32To64(left[i], ld, rounding)
                     + ScaleHelper.WidenByDelta32To64(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void AddWiden(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -155,13 +176,17 @@ public static class SpanAddKernel
         for (int i = 0; i < left.Length; i++)
             result[i] = checked(ScaleHelper.WidenByDelta64To128(left[i], ld, rounding)
                 + ScaleHelper.WidenByDelta64To128(right[i], rd, rounding));
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void AddWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -171,6 +196,9 @@ public static class SpanAddKernel
         for (int i = 0; i < left.Length; i++)
             result[i] = checked(ScaleHelper.WidenByDelta128To256(left[i], ld, rounding)
                 + ScaleHelper.WidenByDelta128To256(right[i], rd, rounding));
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -181,7 +209,8 @@ public static class SpanAddKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         int right, DecimalType rightType,
         Span<int> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -197,13 +226,17 @@ public static class SpanAddKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = checked(ScaleHelper.RescaleByDelta32(left[i], ld, rounding) + rescaledRight);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Add(
         ReadOnlySpan<long> left, DecimalType leftType,
         long right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -219,13 +252,17 @@ public static class SpanAddKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = checked(ScaleHelper.RescaleByDelta64(left[i], ld, rounding) + rescaledRight);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Add(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -242,13 +279,17 @@ public static class SpanAddKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = checked(ScaleHelper.RescaleByDelta128(left[i], ld, rounding) + rescaledRight);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Add(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         Int256 right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -265,6 +306,9 @@ public static class SpanAddKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = checked(ScaleHelper.RescaleByDelta256(left[i], ld, rounding) + rescaledRight);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -275,7 +319,8 @@ public static class SpanAddKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
         Span<int> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -292,13 +337,17 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.RescaleByDelta32(left[i], ld, rounding)
                     - ScaleHelper.RescaleByDelta32(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Subtract(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -315,13 +364,17 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.RescaleByDelta64(left[i], ld, rounding)
                     - ScaleHelper.RescaleByDelta64(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Subtract(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -339,13 +392,17 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.RescaleByDelta128(left[i], ld, rounding)
                     - ScaleHelper.RescaleByDelta128(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Subtract(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -363,6 +420,9 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.RescaleByDelta256(left[i], ld, rounding)
                     - ScaleHelper.RescaleByDelta256(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -373,7 +433,8 @@ public static class SpanAddKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         int right, DecimalType rightType,
         Span<int> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -389,13 +450,17 @@ public static class SpanAddKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = checked(ScaleHelper.RescaleByDelta32(left[i], ld, rounding) - rescaledRight);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Subtract(
         ReadOnlySpan<long> left, DecimalType leftType,
         long right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -411,13 +476,17 @@ public static class SpanAddKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = checked(ScaleHelper.RescaleByDelta64(left[i], ld, rounding) - rescaledRight);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Subtract(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -434,13 +503,17 @@ public static class SpanAddKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = checked(ScaleHelper.RescaleByDelta128(left[i], ld, rounding) - rescaledRight);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Subtract(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         Int256 right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -457,6 +530,9 @@ public static class SpanAddKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = checked(ScaleHelper.RescaleByDelta256(left[i], ld, rounding) - rescaledRight);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -467,7 +543,8 @@ public static class SpanAddKernel
         int left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
         Span<int> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(right.Length, result.Length);
 
@@ -483,13 +560,17 @@ public static class SpanAddKernel
             for (int i = 0; i < right.Length; i++)
                 result[i] = checked(rescaledLeft - ScaleHelper.RescaleByDelta32(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
     public static void Subtract(
         long left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(right.Length, result.Length);
 
@@ -505,13 +586,17 @@ public static class SpanAddKernel
             for (int i = 0; i < right.Length; i++)
                 result[i] = checked(rescaledLeft - ScaleHelper.RescaleByDelta64(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
     public static void Subtract(
         Int128 left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(right.Length, result.Length);
 
@@ -528,13 +613,17 @@ public static class SpanAddKernel
             for (int i = 0; i < right.Length; i++)
                 result[i] = checked(rescaledLeft - ScaleHelper.RescaleByDelta128(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
     public static void Subtract(
         Int256 left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(right.Length, result.Length);
 
@@ -551,6 +640,9 @@ public static class SpanAddKernel
             for (int i = 0; i < right.Length; i++)
                 result[i] = checked(rescaledLeft - ScaleHelper.RescaleByDelta256(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
     // ================================================================
