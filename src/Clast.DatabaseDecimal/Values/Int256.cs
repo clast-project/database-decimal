@@ -127,15 +127,15 @@ public readonly struct Int256 : IEquatable<Int256>, IComparable<Int256>
     /// subtlety left is the asymmetric range: -2^255 is representable and
     /// +2^255 is not, which makes MinValue the one product whose magnitude may
     /// sit above <see cref="MaxValue"/>.
-    /// </remarks>
-    /// <exception cref="OverflowException">The product does not fit in 256 bits.</exception>
-    /// <remarks>
+    /// <para>
     /// Kept small so it inlines: the range test is a pair of comparisons on the
     /// hot path, and everything else lives behind a non-inlined call. Written as
     /// one method it is too large to inline, and every caller then pays a real
     /// call with two 32-byte struct copies where the unchecked operator had been
     /// folded into a few instructions.
+    /// </para>
     /// </remarks>
+    /// <exception cref="OverflowException">The product does not fit in 256 bits.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int256 operator checked *(Int256 left, Int256 right)
     {
