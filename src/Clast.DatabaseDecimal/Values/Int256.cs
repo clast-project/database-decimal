@@ -1,6 +1,7 @@
 // Copyright (c) clast-project. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Clast.DatabaseDecimal.Values;
@@ -117,6 +118,67 @@ public readonly struct Int256 : IEquatable<Int256>, IComparable<Int256>
     public static Int256 operator -(Int256 value) => Zero - value;
 
     public static Int256 operator checked -(Int256 value) => checked(Zero - value);
+
+    /// <summary>
+    /// Multiplication that throws rather than wrapping.
+    /// </summary>
+    /// <remarks>
+    /// Delegates the range test to the unsigned magnitudes, so the only signed
+    /// subtlety left is the asymmetric range: -2^255 is representable and
+    /// +2^255 is not, which makes MinValue the one product whose magnitude may
+    /// sit above <see cref="MaxValue"/>.
+    /// <para>
+    /// Kept small so it inlines: the range test is a pair of comparisons on the
+    /// hot path, and everything else lives behind a non-inlined call. Written as
+    /// one method it is too large to inline, and every caller then pays a real
+    /// call with two 32-byte struct copies where the unchecked operator had been
+    /// folded into a few instructions.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="OverflowException">The product does not fit in 256 bits.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Int256 operator checked *(Int256 left, Int256 right)
+    {
+        // |a| <= 2^127 and |b| <= 2^127 give |a*b| <= 2^254, which is always
+        // representable. Mantissas reaching past 128 bits are the exception even
+        // in the 256-bit tier, so the common case skips the magnitude work.
+        if (FitsInt128(left) && FitsInt128(right))
+            return left * right;
+
+        return CheckedMultiplyWide(left, right);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static Int256 CheckedMultiplyWide(Int256 left, Int256 right)
+    {
+        bool negativeResult = IsNegative(left) ^ IsNegative(right);
+        UInt256 magnitude = checked(UnsignedMagnitude(left) * UnsignedMagnitude(right));
+
+        if (magnitude > (UInt256)MaxValue)
+        {
+            if (negativeResult && magnitude == (UInt256)MinValue) return MinValue;
+            throw new OverflowException();
+        }
+
+        Int256 result = (Int256)magnitude;
+        return negativeResult ? -result : result;
+    }
+
+    /// <summary>Whether the value round-trips through 128 bits unchanged.</summary>
+    /// <remarks>
+    /// A bit-twiddling equivalent — comparing the upper half against the sign
+    /// extension of the lower half — measured the same, so this keeps the form
+    /// whose correctness is self-evident.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool FitsInt128(Int256 value) => (Int256)(Int128)value == value;
+
+    /// <summary>
+    /// Magnitude as an unsigned value. Negating MinValue wraps back to MinValue,
+    /// whose unsigned reinterpretation is exactly 2^255 — the right magnitude.
+    /// </summary>
+    private static UInt256 UnsignedMagnitude(Int256 value) =>
+        (UInt256)(IsNegative(value) ? -value : value);
 
     /// <summary>
     /// Truncated multiplication. Delegates to UInt256 since truncated

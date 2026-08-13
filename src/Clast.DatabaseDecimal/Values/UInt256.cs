@@ -1,6 +1,7 @@
 // Copyright (c) clast-project. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Clast.DatabaseDecimal.Values;
@@ -123,6 +124,48 @@ public readonly struct UInt256 : IEquatable<UInt256>, IComparable<UInt256>
         UInt128 upper = full._upper + left._upper * right._lower + left._lower * right._upper;
         return new UInt256(upper, full._lower);
     }
+
+    /// <summary>
+    /// Multiplication that throws rather than wrapping.
+    /// </summary>
+    /// <remarks>
+    /// There is no 512-bit type to widen into, so overflow is decided from the
+    /// operands' bit lengths. With a &lt; 2^m and b &lt; 2^n the product is below
+    /// 2^(m+n), and with a >= 2^(m-1) and b >= 2^(n-1) it is at least 2^(m+n-2).
+    /// So m+n &lt;= 256 always fits and m+n >= 258 always overflows, leaving only
+    /// m+n == 257 undecided — and there the wrapped product answers it, since
+    /// dividing it back by a non-zero operand reproduces the other only when no
+    /// wrap occurred. Both operands are non-zero whenever m+n is 257, because a
+    /// zero operand has bit length 0.
+    /// </remarks>
+    /// <exception cref="OverflowException">The product does not fit in 256 bits.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static UInt256 operator checked *(UInt256 left, UInt256 right)
+    {
+        // Two 128-bit operands cannot exceed 256 bits, and BigMul gives their
+        // exact product directly. This is the common case, and keeping it here
+        // rather than in one large method is what lets it inline.
+        if (left._upper == UInt128.Zero && right._upper == UInt128.Zero)
+            return BigMul(left._lower, right._lower);
+
+        return CheckedMultiplyWide(left, right);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static UInt256 CheckedMultiplyWide(UInt256 left, UInt256 right)
+    {
+        int bits = BitLength(left) + BitLength(right);
+        if (bits > 257) throw new OverflowException();
+
+        UInt256 product = left * right;
+        if (bits == 257 && product / left != right) throw new OverflowException();
+
+        return product;
+    }
+
+    /// <summary>Position of the highest set bit, or 0 for zero.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static int BitLength(UInt256 value) => 256 - LeadingZeroCount(value);
 
     public static UInt256 operator /(UInt256 left, UInt256 right)
     {

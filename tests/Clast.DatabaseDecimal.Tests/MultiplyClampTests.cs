@@ -169,6 +169,48 @@ public class MultiplyClampTests
         Assert.Equal((Int256)3000000, result.Mantissa);
     }
 
+    /// <summary>
+    /// The 256-bit tier used a plain <c>l * r</c>, so a product past 2^255
+    /// wrapped and was returned as a value — 2^128 × 2^128 landing on exactly
+    /// zero, which no range check can distinguish from a genuine zero. Every
+    /// other tier threw for the same shape. Issue #6.
+    /// </summary>
+    [Fact]
+    public void Multiply256_ProductPastTheWidth_Throws()
+    {
+        var t76 = DecimalType.Numeric(76, 0);
+        var twoTo128 = new Decimal256(Int256.One << 128);
+
+        Assert.Throws<OverflowException>(() =>
+            MultiplyKernel.Multiply(twoTo128, t76, twoTo128, t76, t76));
+
+        // The width check is not the precision check: DecimalOverflow.Ignore
+        // relaxes the declared precision, never the mantissa width.
+        Assert.Throws<OverflowException>(() =>
+            MultiplyKernel.Multiply(twoTo128, t76, twoTo128, t76, t76,
+                DecimalRounding.HalfEven, DecimalOverflow.Ignore));
+    }
+
+    [Fact]
+    public void SpanMultiply256_ProductPastTheWidth_Throws()
+    {
+        var t76 = DecimalType.Numeric(76, 0);
+        Int256[] operands = { Int256.One << 128 };
+        Int256[] result = new Int256[1];
+
+        Assert.Throws<OverflowException>(() =>
+            SpanMultiplyKernel.Multiply(operands, t76, operands, t76, result, t76));
+    }
+
+    [Fact]
+    public void Rescale256_PastTheWidth_Throws()
+    {
+        // ScaleHelper already said checked(...) here, but with no checked
+        // multiply on Int256 it bound to the wrapping operator.
+        Int256 big = Int256.One << 250;
+        Assert.Throws<OverflowException>(() => ScaleHelper.Rescale256(big, 0, 10));
+    }
+
     [Fact]
     public void SpanMultiply256_ClampedResultScale_MatchesScalar()
     {

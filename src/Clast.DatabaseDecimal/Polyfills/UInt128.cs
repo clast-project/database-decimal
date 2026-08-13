@@ -104,6 +104,23 @@ public readonly struct UInt128 : IEquatable<UInt128>, IComparable<UInt128>
         return new UInt128(upper, p00_lo);
     }
 
+    /// <summary>
+    /// Multiplication that throws rather than wrapping, matching the BCL's
+    /// <c>checked *</c>. Without this operator C# binds <c>checked(a * b)</c>
+    /// to the truncating one above and the overflow passes silently.
+    /// </summary>
+    public static UInt128 operator checked *(UInt128 left, UInt128 right)
+    {
+        // The full product needs 256 bits, so form it there rather than
+        // range-testing a value that has already wrapped.
+        Clast.DatabaseDecimal.Values.UInt256 wide =
+            Clast.DatabaseDecimal.Values.UInt256.BigMul(left, right);
+        if ((UInt128)(wide >>> 128) != Zero)
+            throw new OverflowException();
+
+        return (UInt128)wide;
+    }
+
     public static UInt128 operator /(UInt128 left, UInt128 right)
     {
         var (q, _) = DivRem(left, right);
