@@ -36,7 +36,8 @@ public static class SpanModulusKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale32(left[i], ld, rounding) % Rescale32(right[i], rd, rounding);
+                result[i] = ScaleHelper.RescaleByDelta32(left[i], ld, rounding)
+                    % ScaleHelper.RescaleByDelta32(right[i], rd, rounding);
         }
     }
 
@@ -59,7 +60,8 @@ public static class SpanModulusKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale64(left[i], ld, rounding) % Rescale64(right[i], rd, rounding);
+                result[i] = ScaleHelper.RescaleByDelta64(left[i], ld, rounding)
+                    % ScaleHelper.RescaleByDelta64(right[i], rd, rounding);
         }
     }
 
@@ -82,7 +84,8 @@ public static class SpanModulusKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale128(left[i], ld, rounding) % Rescale128(right[i], rd, rounding);
+                result[i] = ScaleHelper.RescaleByDelta128(left[i], ld, rounding)
+                    % ScaleHelper.RescaleByDelta128(right[i], rd, rounding);
         }
     }
 
@@ -105,7 +108,8 @@ public static class SpanModulusKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale256(left[i], ld, rounding) % Rescale256(right[i], rd, rounding);
+                result[i] = ScaleHelper.RescaleByDelta256(left[i], ld, rounding)
+                    % ScaleHelper.RescaleByDelta256(right[i], rd, rounding);
         }
     }
 
@@ -125,7 +129,8 @@ public static class SpanModulusKernel
         int rd = resultType.Scale - rightType.Scale;
 
         for (int i = 0; i < left.Length; i++)
-            result[i] = Widen32To64(left[i], ld, rounding) % Widen32To64(right[i], rd, rounding);
+            result[i] = ScaleHelper.WidenByDelta32To64(left[i], ld, rounding)
+                % ScaleHelper.WidenByDelta32To64(right[i], rd, rounding);
     }
 
     public static void ModulusWiden(
@@ -140,7 +145,8 @@ public static class SpanModulusKernel
         int rd = resultType.Scale - rightType.Scale;
 
         for (int i = 0; i < left.Length; i++)
-            result[i] = Widen64To128(left[i], ld, rounding) % Widen64To128(right[i], rd, rounding);
+            result[i] = ScaleHelper.WidenByDelta64To128(left[i], ld, rounding)
+                % ScaleHelper.WidenByDelta64To128(right[i], rd, rounding);
     }
 
     public static void ModulusWiden(
@@ -155,7 +161,8 @@ public static class SpanModulusKernel
         int rd = resultType.Scale - rightType.Scale;
 
         for (int i = 0; i < left.Length; i++)
-            result[i] = Widen128To256(left[i], ld, rounding) % Widen128To256(right[i], rd, rounding);
+            result[i] = ScaleHelper.WidenByDelta128To256(left[i], ld, rounding)
+                % ScaleHelper.WidenByDelta128To256(right[i], rd, rounding);
     }
 
     // ================================================================
@@ -181,7 +188,7 @@ public static class SpanModulusKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale32(left[i], ld, rounding) % rescaledRight;
+                result[i] = ScaleHelper.RescaleByDelta32(left[i], ld, rounding) % rescaledRight;
         }
     }
 
@@ -204,7 +211,7 @@ public static class SpanModulusKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale64(left[i], ld, rounding) % rescaledRight;
+                result[i] = ScaleHelper.RescaleByDelta64(left[i], ld, rounding) % rescaledRight;
         }
     }
 
@@ -227,7 +234,7 @@ public static class SpanModulusKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale128(left[i], ld, rounding) % rescaledRight;
+                result[i] = ScaleHelper.RescaleByDelta128(left[i], ld, rounding) % rescaledRight;
         }
     }
 
@@ -250,72 +257,13 @@ public static class SpanModulusKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale256(left[i], ld, rounding) % rescaledRight;
+                result[i] = ScaleHelper.RescaleByDelta256(left[i], ld, rounding) % rescaledRight;
         }
     }
 
     // ================================================================
     // Helpers
     // ================================================================
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int Rescale32(int value, int delta, DecimalRounding rounding)
-    {
-        if (delta == 0) return value;
-        if (delta > 0) return checked(value * PowersOf10.Int32[delta]);
-        return ScaleHelper.DivideRound(value, PowersOf10.Int32[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static long Rescale64(long value, int delta, DecimalRounding rounding)
-    {
-        if (delta == 0) return value;
-        if (delta > 0) return checked(value * PowersOf10.Int64[delta]);
-        return ScaleHelper.DivideRound(value, PowersOf10.Int64[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int128 Rescale128(Int128 value, int delta, DecimalRounding rounding)
-    {
-        if (delta == 0) return value;
-        if (delta > 0) return checked(value * PowersOf10.Int128[delta]);
-        return ScaleHelper.DivideRound(value, PowersOf10.Int128[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int256 Rescale256(Int256 value, int delta, DecimalRounding rounding)
-    {
-        if (delta == 0) return value;
-        if (delta > 0) return checked(value * PowersOf10.Int256[delta]);
-        return ScaleHelper.DivideRound(value, PowersOf10.Int256[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static long Widen32To64(int value, int delta, DecimalRounding rounding)
-    {
-        long wide = value;
-        if (delta == 0) return wide;
-        if (delta > 0) return checked(wide * PowersOf10.Int64[delta]);
-        return ScaleHelper.DivideRound(wide, PowersOf10.Int64[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int128 Widen64To128(long value, int delta, DecimalRounding rounding)
-    {
-        Int128 wide = value;
-        if (delta == 0) return wide;
-        if (delta > 0) return checked(wide * PowersOf10.Int128[delta]);
-        return ScaleHelper.DivideRound(wide, PowersOf10.Int128[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int256 Widen128To256(Int128 value, int delta, DecimalRounding rounding)
-    {
-        Int256 wide = value;
-        if (delta == 0) return wide;
-        if (delta > 0) return checked(wide * PowersOf10.Int256[delta]);
-        return ScaleHelper.DivideRound(wide, PowersOf10.Int256[-delta], rounding);
-    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ValidateLengths(int leftLen, int rightLen, int resultLen)

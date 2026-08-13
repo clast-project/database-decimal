@@ -38,7 +38,8 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale32(left[i], ld, rounding) + Rescale32(right[i], rd, rounding));
+                result[i] = checked(ScaleHelper.RescaleByDelta32(left[i], ld, rounding)
+                    + ScaleHelper.RescaleByDelta32(right[i], rd, rounding));
         }
     }
 
@@ -60,7 +61,8 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale64(left[i], ld, rounding) + Rescale64(right[i], rd, rounding));
+                result[i] = checked(ScaleHelper.RescaleByDelta64(left[i], ld, rounding)
+                    + ScaleHelper.RescaleByDelta64(right[i], rd, rounding));
         }
     }
 
@@ -83,7 +85,8 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale128(left[i], ld, rounding) + Rescale128(right[i], rd, rounding));
+                result[i] = checked(ScaleHelper.RescaleByDelta128(left[i], ld, rounding)
+                    + ScaleHelper.RescaleByDelta128(right[i], rd, rounding));
         }
     }
 
@@ -106,7 +109,8 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale256(left[i], ld, rounding) + Rescale256(right[i], rd, rounding));
+                result[i] = checked(ScaleHelper.RescaleByDelta256(left[i], ld, rounding)
+                    + ScaleHelper.RescaleByDelta256(right[i], rd, rounding));
         }
     }
 
@@ -132,7 +136,8 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Widen32To64(left[i], ld, rounding) + Widen32To64(right[i], rd, rounding));
+                result[i] = checked(ScaleHelper.WidenByDelta32To64(left[i], ld, rounding)
+                    + ScaleHelper.WidenByDelta32To64(right[i], rd, rounding));
         }
     }
 
@@ -148,7 +153,8 @@ public static class SpanAddKernel
         int rd = resultType.Scale - rightType.Scale;
 
         for (int i = 0; i < left.Length; i++)
-            result[i] = checked(Widen64To128(left[i], ld, rounding) + Widen64To128(right[i], rd, rounding));
+            result[i] = checked(ScaleHelper.WidenByDelta64To128(left[i], ld, rounding)
+                + ScaleHelper.WidenByDelta64To128(right[i], rd, rounding));
     }
 
     public static void AddWiden(
@@ -163,7 +169,8 @@ public static class SpanAddKernel
         int rd = resultType.Scale - rightType.Scale;
 
         for (int i = 0; i < left.Length; i++)
-            result[i] = checked(Widen128To256(left[i], ld, rounding) + Widen128To256(right[i], rd, rounding));
+            result[i] = checked(ScaleHelper.WidenByDelta128To256(left[i], ld, rounding)
+                + ScaleHelper.WidenByDelta128To256(right[i], rd, rounding));
     }
 
     // ================================================================
@@ -188,7 +195,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale32(left[i], ld, rounding) + rescaledRight);
+                result[i] = checked(ScaleHelper.RescaleByDelta32(left[i], ld, rounding) + rescaledRight);
         }
     }
 
@@ -210,7 +217,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale64(left[i], ld, rounding) + rescaledRight);
+                result[i] = checked(ScaleHelper.RescaleByDelta64(left[i], ld, rounding) + rescaledRight);
         }
     }
 
@@ -233,7 +240,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale128(left[i], ld, rounding) + rescaledRight);
+                result[i] = checked(ScaleHelper.RescaleByDelta128(left[i], ld, rounding) + rescaledRight);
         }
     }
 
@@ -256,7 +263,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale256(left[i], ld, rounding) + rescaledRight);
+                result[i] = checked(ScaleHelper.RescaleByDelta256(left[i], ld, rounding) + rescaledRight);
         }
     }
 
@@ -282,7 +289,8 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale32(left[i], ld, rounding) - Rescale32(right[i], rd, rounding));
+                result[i] = checked(ScaleHelper.RescaleByDelta32(left[i], ld, rounding)
+                    - ScaleHelper.RescaleByDelta32(right[i], rd, rounding));
         }
     }
 
@@ -304,7 +312,8 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale64(left[i], ld, rounding) - Rescale64(right[i], rd, rounding));
+                result[i] = checked(ScaleHelper.RescaleByDelta64(left[i], ld, rounding)
+                    - ScaleHelper.RescaleByDelta64(right[i], rd, rounding));
         }
     }
 
@@ -327,7 +336,8 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale128(left[i], ld, rounding) - Rescale128(right[i], rd, rounding));
+                result[i] = checked(ScaleHelper.RescaleByDelta128(left[i], ld, rounding)
+                    - ScaleHelper.RescaleByDelta128(right[i], rd, rounding));
         }
     }
 
@@ -350,7 +360,8 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale256(left[i], ld, rounding) - Rescale256(right[i], rd, rounding));
+                result[i] = checked(ScaleHelper.RescaleByDelta256(left[i], ld, rounding)
+                    - ScaleHelper.RescaleByDelta256(right[i], rd, rounding));
         }
     }
 
@@ -376,7 +387,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale32(left[i], ld, rounding) - rescaledRight);
+                result[i] = checked(ScaleHelper.RescaleByDelta32(left[i], ld, rounding) - rescaledRight);
         }
     }
 
@@ -398,7 +409,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale64(left[i], ld, rounding) - rescaledRight);
+                result[i] = checked(ScaleHelper.RescaleByDelta64(left[i], ld, rounding) - rescaledRight);
         }
     }
 
@@ -421,7 +432,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale128(left[i], ld, rounding) - rescaledRight);
+                result[i] = checked(ScaleHelper.RescaleByDelta128(left[i], ld, rounding) - rescaledRight);
         }
     }
 
@@ -444,7 +455,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = checked(Rescale256(left[i], ld, rounding) - rescaledRight);
+                result[i] = checked(ScaleHelper.RescaleByDelta256(left[i], ld, rounding) - rescaledRight);
         }
     }
 
@@ -470,7 +481,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < right.Length; i++)
-                result[i] = checked(rescaledLeft - Rescale32(right[i], rd, rounding));
+                result[i] = checked(rescaledLeft - ScaleHelper.RescaleByDelta32(right[i], rd, rounding));
         }
     }
 
@@ -492,7 +503,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < right.Length; i++)
-                result[i] = checked(rescaledLeft - Rescale64(right[i], rd, rounding));
+                result[i] = checked(rescaledLeft - ScaleHelper.RescaleByDelta64(right[i], rd, rounding));
         }
     }
 
@@ -515,7 +526,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < right.Length; i++)
-                result[i] = checked(rescaledLeft - Rescale128(right[i], rd, rounding));
+                result[i] = checked(rescaledLeft - ScaleHelper.RescaleByDelta128(right[i], rd, rounding));
         }
     }
 
@@ -538,7 +549,7 @@ public static class SpanAddKernel
         else
         {
             for (int i = 0; i < right.Length; i++)
-                result[i] = checked(rescaledLeft - Rescale256(right[i], rd, rounding));
+                result[i] = checked(rescaledLeft - ScaleHelper.RescaleByDelta256(right[i], rd, rounding));
         }
     }
 
@@ -546,65 +557,6 @@ public static class SpanAddKernel
     // Inline rescale helpers — delta and rounding are both loop-invariant,
     // so the branch predictor handles the per-element branches perfectly.
     // ================================================================
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int Rescale32(int value, int delta, DecimalRounding rounding)
-    {
-        if (delta == 0) return value;
-        if (delta > 0) return checked(value * PowersOf10.Int32[delta]);
-        return ScaleHelper.DivideRound(value, PowersOf10.Int32[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static long Rescale64(long value, int delta, DecimalRounding rounding)
-    {
-        if (delta == 0) return value;
-        if (delta > 0) return checked(value * PowersOf10.Int64[delta]);
-        return ScaleHelper.DivideRound(value, PowersOf10.Int64[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int128 Rescale128(Int128 value, int delta, DecimalRounding rounding)
-    {
-        if (delta == 0) return value;
-        if (delta > 0) return checked(value * PowersOf10.Int128[delta]);
-        return ScaleHelper.DivideRound(value, PowersOf10.Int128[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int256 Rescale256(Int256 value, int delta, DecimalRounding rounding)
-    {
-        if (delta == 0) return value;
-        if (delta > 0) return checked(value * PowersOf10.Int256[delta]);
-        return ScaleHelper.DivideRound(value, PowersOf10.Int256[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static long Widen32To64(int value, int delta, DecimalRounding rounding)
-    {
-        long wide = value;
-        if (delta == 0) return wide;
-        if (delta > 0) return checked(wide * PowersOf10.Int64[delta]);
-        return ScaleHelper.DivideRound(wide, PowersOf10.Int64[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int128 Widen64To128(long value, int delta, DecimalRounding rounding)
-    {
-        Int128 wide = value;
-        if (delta == 0) return wide;
-        if (delta > 0) return checked(wide * PowersOf10.Int128[delta]);
-        return ScaleHelper.DivideRound(wide, PowersOf10.Int128[-delta], rounding);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int256 Widen128To256(Int128 value, int delta, DecimalRounding rounding)
-    {
-        Int256 wide = value;
-        if (delta == 0) return wide;
-        if (delta > 0) return checked(wide * PowersOf10.Int256[delta]);
-        return ScaleHelper.DivideRound(wide, PowersOf10.Int256[-delta], rounding);
-    }
 
     // ================================================================
     // Validation

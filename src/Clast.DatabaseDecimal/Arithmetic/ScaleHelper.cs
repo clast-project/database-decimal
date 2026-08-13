@@ -17,87 +17,122 @@ public static class ScaleHelper
     /// Rescale a 32-bit mantissa, staying within 32-bit.
     /// </summary>
     public static int Rescale32(int mantissa, int fromScale, int toScale,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
-    {
-        int delta = toScale - fromScale;
-        if (delta == 0) return mantissa;
-        if (delta > 0) return checked(mantissa * PowersOf10.Int32[delta]);
-        return DivideRound(mantissa, PowersOf10.Int32[-delta], rounding);
-    }
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        RescaleByDelta32(mantissa, toScale - fromScale, rounding);
 
     /// <summary>
     /// Widen a 32-bit mantissa to 64-bit and rescale.
     /// </summary>
     public static long Widen32To64(int mantissa, int fromScale, int toScale,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
-    {
-        long wide = mantissa;
-        int delta = toScale - fromScale;
-        if (delta == 0) return wide;
-        if (delta > 0) return checked(wide * PowersOf10.Int64[delta]);
-        return DivideRound(wide, PowersOf10.Int64[-delta], rounding);
-    }
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        WidenByDelta32To64(mantissa, toScale - fromScale, rounding);
 
     /// <summary>
     /// Rescale a 64-bit mantissa, staying within 64-bit.
     /// </summary>
     public static long Rescale64(long mantissa, int fromScale, int toScale,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
-    {
-        int delta = toScale - fromScale;
-        if (delta == 0) return mantissa;
-        if (delta > 0) return checked(mantissa * PowersOf10.Int64[delta]);
-        return DivideRound(mantissa, PowersOf10.Int64[-delta], rounding);
-    }
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        RescaleByDelta64(mantissa, toScale - fromScale, rounding);
 
     /// <summary>
     /// Widen a 64-bit mantissa to 128-bit and rescale.
     /// </summary>
     public static Int128 Widen64To128(long mantissa, int fromScale, int toScale,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
-    {
-        Int128 wide = mantissa;
-        int delta = toScale - fromScale;
-        if (delta == 0) return wide;
-        if (delta > 0) return checked(wide * PowersOf10.Int128[delta]);
-        return DivideRound(wide, PowersOf10.Int128[-delta], rounding);
-    }
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        WidenByDelta64To128(mantissa, toScale - fromScale, rounding);
 
     /// <summary>
     /// Rescale a 128-bit mantissa, staying within 128-bit.
     /// </summary>
     public static Int128 Rescale128(Int128 mantissa, int fromScale, int toScale,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
-    {
-        int delta = toScale - fromScale;
-        if (delta == 0) return mantissa;
-        if (delta > 0) return checked(mantissa * PowersOf10.Int128[delta]);
-        return DivideRound(mantissa, PowersOf10.Int128[-delta], rounding);
-    }
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        RescaleByDelta128(mantissa, toScale - fromScale, rounding);
 
     /// <summary>
     /// Widen a 128-bit mantissa to 256-bit and rescale.
     /// </summary>
     public static Int256 Widen128To256(Int128 mantissa, int fromScale, int toScale,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
-    {
-        Int256 wide = mantissa;
-        int delta = toScale - fromScale;
-        if (delta == 0) return wide;
-        if (delta > 0) return checked(wide * PowersOf10.Int256[delta]);
-        return DivideRound(wide, PowersOf10.Int256[-delta], rounding);
-    }
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        WidenByDelta128To256(mantissa, toScale - fromScale, rounding);
 
     /// <summary>
     /// Rescale a 256-bit mantissa, staying within 256-bit.
     /// </summary>
     public static Int256 Rescale256(Int256 mantissa, int fromScale, int toScale,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        RescaleByDelta256(mantissa, toScale - fromScale, rounding);
+
+    // ================================================================
+    // Rescale by a scale delta rather than a from/to pair.
+    //
+    // The span kernels hoist the delta out of their loops, so this is the form
+    // they need; the public from/to helpers above are thin wrappers over it.
+    // Keeping one body per width means the rounding mode cannot be honoured in
+    // one copy and quietly dropped in another, which is how banker's rounding
+    // came to be hard-coded in three separate kernel files.
+    //
+    // A positive delta scales up and is exact, a negative delta scales down and
+    // rounds. Both the delta and the mode are loop-invariant at every call
+    // site, so the branches predict perfectly.
+    // ================================================================
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static int RescaleByDelta32(int mantissa, int delta, DecimalRounding rounding)
     {
-        int delta = toScale - fromScale;
+        if (delta == 0) return mantissa;
+        if (delta > 0) return checked(mantissa * PowersOf10.Int32[delta]);
+        return DivideRound(mantissa, PowersOf10.Int32[-delta], rounding);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static long RescaleByDelta64(long mantissa, int delta, DecimalRounding rounding)
+    {
+        if (delta == 0) return mantissa;
+        if (delta > 0) return checked(mantissa * PowersOf10.Int64[delta]);
+        return DivideRound(mantissa, PowersOf10.Int64[-delta], rounding);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static Int128 RescaleByDelta128(Int128 mantissa, int delta, DecimalRounding rounding)
+    {
+        if (delta == 0) return mantissa;
+        if (delta > 0) return checked(mantissa * PowersOf10.Int128[delta]);
+        return DivideRound(mantissa, PowersOf10.Int128[-delta], rounding);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static Int256 RescaleByDelta256(Int256 mantissa, int delta, DecimalRounding rounding)
+    {
         if (delta == 0) return mantissa;
         if (delta > 0) return checked(mantissa * PowersOf10.Int256[delta]);
         return DivideRound(mantissa, PowersOf10.Int256[-delta], rounding);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static long WidenByDelta32To64(int mantissa, int delta, DecimalRounding rounding)
+    {
+        long wide = mantissa;
+        if (delta == 0) return wide;
+        if (delta > 0) return checked(wide * PowersOf10.Int64[delta]);
+        return DivideRound(wide, PowersOf10.Int64[-delta], rounding);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static Int128 WidenByDelta64To128(long mantissa, int delta, DecimalRounding rounding)
+    {
+        Int128 wide = mantissa;
+        if (delta == 0) return wide;
+        if (delta > 0) return checked(wide * PowersOf10.Int128[delta]);
+        return DivideRound(wide, PowersOf10.Int128[-delta], rounding);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static Int256 WidenByDelta128To256(Int128 mantissa, int delta, DecimalRounding rounding)
+    {
+        Int256 wide = mantissa;
+        if (delta == 0) return wide;
+        if (delta > 0) return checked(wide * PowersOf10.Int256[delta]);
+        return DivideRound(wide, PowersOf10.Int256[-delta], rounding);
     }
 
     // ================================================================
