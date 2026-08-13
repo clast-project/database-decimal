@@ -34,7 +34,10 @@ public static class SpanAddKernel
 
         if (ld == 0 && rd == 0)
         {
-            AddSameScale32(left, right, result);
+            DecimalRange.GetBounds(resultType, out int lower, out int upper);
+            if (AddSameScale32(left, right, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -61,7 +64,10 @@ public static class SpanAddKernel
 
         if (ld == 0 && rd == 0)
         {
-            AddSameScale64(left, right, result);
+            DecimalRange.GetBounds(resultType, out long lower, out long upper);
+            if (AddSameScale64(left, right, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -148,7 +154,10 @@ public static class SpanAddKernel
 
         if (ld == 0 && rd == 0)
         {
-            AddWidenSameScale32To64(left, right, result);
+            DecimalRange.GetBounds(resultType, out long lower, out long upper);
+            if (AddWidenSameScale32To64(left, right, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -219,7 +228,10 @@ public static class SpanAddKernel
 
         if (ld == 0)
         {
-            AddBroadcastSameScale32(left, rescaledRight, result);
+            DecimalRange.GetBounds(resultType, out int lower, out int upper);
+            if (AddBroadcastSameScale32(left, rescaledRight, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -245,7 +257,10 @@ public static class SpanAddKernel
 
         if (ld == 0)
         {
-            AddBroadcastSameScale64(left, rescaledRight, result);
+            DecimalRange.GetBounds(resultType, out long lower, out long upper);
+            if (AddBroadcastSameScale64(left, rescaledRight, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -329,7 +344,10 @@ public static class SpanAddKernel
 
         if (ld == 0 && rd == 0)
         {
-            SubtractSameScale32(left, right, result);
+            DecimalRange.GetBounds(resultType, out int lower, out int upper);
+            if (SubtractSameScale32(left, right, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -356,7 +374,10 @@ public static class SpanAddKernel
 
         if (ld == 0 && rd == 0)
         {
-            SubtractSameScale64(left, right, result);
+            DecimalRange.GetBounds(resultType, out long lower, out long upper);
+            if (SubtractSameScale64(left, right, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -443,7 +464,10 @@ public static class SpanAddKernel
 
         if (ld == 0)
         {
-            SubtractBroadcastColumnScalar32(left, rescaledRight, result);
+            DecimalRange.GetBounds(resultType, out int lower, out int upper);
+            if (SubtractBroadcastColumnScalar32(left, rescaledRight, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -469,7 +493,10 @@ public static class SpanAddKernel
 
         if (ld == 0)
         {
-            SubtractBroadcastColumnScalar64(left, rescaledRight, result);
+            DecimalRange.GetBounds(resultType, out long lower, out long upper);
+            if (SubtractBroadcastColumnScalar64(left, rescaledRight, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -553,7 +580,10 @@ public static class SpanAddKernel
 
         if (rd == 0)
         {
-            SubtractBroadcastScalarColumn32(rescaledLeft, right, result);
+            DecimalRange.GetBounds(resultType, out int lower, out int upper);
+            if (SubtractBroadcastScalarColumn32(rescaledLeft, right, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -579,7 +609,10 @@ public static class SpanAddKernel
 
         if (rd == 0)
         {
-            SubtractBroadcastScalarColumn64(rescaledLeft, right, result);
+            DecimalRange.GetBounds(resultType, out long lower, out long upper);
+            if (SubtractBroadcastScalarColumn64(rescaledLeft, right, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
         }
         else
         {
@@ -678,9 +711,10 @@ public static class SpanAddKernel
     // for subtract. Any lane with the high bit set indicates overflow.
     // ================================================================
 
-    private static void AddSameScale32(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<int> result)
+    private static bool AddSameScale32(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<int> result, int lower, int upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
         {
@@ -689,26 +723,38 @@ public static class SpanAddKernel
             Span<Vector<int>> ov = MemoryMarshal.Cast<int, Vector<int>>(result);
             int chunks = lv.Length;
             Vector<int> overflow = Vector<int>.Zero;
+            Vector<int> outOfRange = Vector<int>.Zero;
+            Vector<int> loVec = new Vector<int>(lower);
+            Vector<int> hiVec = new Vector<int>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<int> a = lv[k];
                 Vector<int> b = rv[k];
                 Vector<int> c = a + b;
                 overflow |= (a ^ c) & (b ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<int>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<int>.Zero;
             i = chunks * Vector<int>.Count;
         }
 #endif
         for (; i < left.Length; i++)
-            result[i] = checked(left[i] + right[i]);
+        {
+            var value = checked(left[i] + right[i]);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void AddSameScale64(ReadOnlySpan<long> left, ReadOnlySpan<long> right, Span<long> result)
+    private static bool AddSameScale64(ReadOnlySpan<long> left, ReadOnlySpan<long> right, Span<long> result, long lower, long upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && left.Length >= Vector<long>.Count)
         {
@@ -717,26 +763,38 @@ public static class SpanAddKernel
             Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
             int chunks = lv.Length;
             Vector<long> overflow = Vector<long>.Zero;
+            Vector<long> outOfRange = Vector<long>.Zero;
+            Vector<long> loVec = new Vector<long>(lower);
+            Vector<long> hiVec = new Vector<long>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<long> a = lv[k];
                 Vector<long> b = rv[k];
                 Vector<long> c = a + b;
                 overflow |= (a ^ c) & (b ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<long>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<long>.Zero;
             i = chunks * Vector<long>.Count;
         }
 #endif
         for (; i < left.Length; i++)
-            result[i] = checked(left[i] + right[i]);
+        {
+            var value = checked(left[i] + right[i]);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void SubtractSameScale32(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<int> result)
+    private static bool SubtractSameScale32(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<int> result, int lower, int upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
         {
@@ -745,26 +803,38 @@ public static class SpanAddKernel
             Span<Vector<int>> ov = MemoryMarshal.Cast<int, Vector<int>>(result);
             int chunks = lv.Length;
             Vector<int> overflow = Vector<int>.Zero;
+            Vector<int> outOfRange = Vector<int>.Zero;
+            Vector<int> loVec = new Vector<int>(lower);
+            Vector<int> hiVec = new Vector<int>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<int> a = lv[k];
                 Vector<int> b = rv[k];
                 Vector<int> c = a - b;
                 overflow |= (a ^ b) & (a ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<int>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<int>.Zero;
             i = chunks * Vector<int>.Count;
         }
 #endif
         for (; i < left.Length; i++)
-            result[i] = checked(left[i] - right[i]);
+        {
+            var value = checked(left[i] - right[i]);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void SubtractSameScale64(ReadOnlySpan<long> left, ReadOnlySpan<long> right, Span<long> result)
+    private static bool SubtractSameScale64(ReadOnlySpan<long> left, ReadOnlySpan<long> right, Span<long> result, long lower, long upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && left.Length >= Vector<long>.Count)
         {
@@ -773,26 +843,38 @@ public static class SpanAddKernel
             Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
             int chunks = lv.Length;
             Vector<long> overflow = Vector<long>.Zero;
+            Vector<long> outOfRange = Vector<long>.Zero;
+            Vector<long> loVec = new Vector<long>(lower);
+            Vector<long> hiVec = new Vector<long>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<long> a = lv[k];
                 Vector<long> b = rv[k];
                 Vector<long> c = a - b;
                 overflow |= (a ^ b) & (a ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<long>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<long>.Zero;
             i = chunks * Vector<long>.Count;
         }
 #endif
         for (; i < left.Length; i++)
-            result[i] = checked(left[i] - right[i]);
+        {
+            var value = checked(left[i] - right[i]);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void AddWidenSameScale32To64(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<long> result)
+    private static bool AddWidenSameScale32To64(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<long> result, long lower, long upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
         {
@@ -800,25 +882,43 @@ public static class SpanAddKernel
             ReadOnlySpan<Vector<int>> rv = MemoryMarshal.Cast<int, Vector<int>>(right);
             Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
             int chunks = lv.Length;
+            // Widening cannot overflow the width, so unlike its siblings this
+            // loop carries no overflow accumulator — but the declared precision
+            // still has to be enforced, on both halves of each widened pair.
+            Vector<long> outOfRange = Vector<long>.Zero;
+            Vector<long> loVec = new Vector<long>(lower);
+            Vector<long> hiVec = new Vector<long>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<int> a = lv[k];
                 Vector<int> b = rv[k];
                 Vector.Widen(a, out Vector<long> aLo, out Vector<long> aHi);
                 Vector.Widen(b, out Vector<long> bLo, out Vector<long> bHi);
-                ov[k * 2] = aLo + bLo;
-                ov[k * 2 + 1] = aHi + bHi;
+                Vector<long> low = aLo + bLo;
+                Vector<long> high = aHi + bHi;
+                outOfRange |= Vector.LessThan(low, loVec) | Vector.GreaterThan(low, hiVec);
+                outOfRange |= Vector.LessThan(high, loVec) | Vector.GreaterThan(high, hiVec);
+                ov[k * 2] = low;
+                ov[k * 2 + 1] = high;
             }
+            outOfRangeSeen |= outOfRange != Vector<long>.Zero;
             i = chunks * Vector<int>.Count;
         }
 #endif
         for (; i < left.Length; i++)
-            result[i] = (long)left[i] + right[i];
+        {
+            var value = (long)left[i] + right[i];
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void AddBroadcastSameScale32(ReadOnlySpan<int> left, int right, Span<int> result)
+    private static bool AddBroadcastSameScale32(ReadOnlySpan<int> left, int right, Span<int> result, int lower, int upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
         {
@@ -827,25 +927,37 @@ public static class SpanAddKernel
             int chunks = lv.Length;
             Vector<int> bv = new Vector<int>(right);
             Vector<int> overflow = Vector<int>.Zero;
+            Vector<int> outOfRange = Vector<int>.Zero;
+            Vector<int> loVec = new Vector<int>(lower);
+            Vector<int> hiVec = new Vector<int>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<int> a = lv[k];
                 Vector<int> c = a + bv;
                 overflow |= (a ^ c) & (bv ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<int>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<int>.Zero;
             i = chunks * Vector<int>.Count;
         }
 #endif
         for (; i < left.Length; i++)
-            result[i] = checked(left[i] + right);
+        {
+            var value = checked(left[i] + right);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void AddBroadcastSameScale64(ReadOnlySpan<long> left, long right, Span<long> result)
+    private static bool AddBroadcastSameScale64(ReadOnlySpan<long> left, long right, Span<long> result, long lower, long upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && left.Length >= Vector<long>.Count)
         {
@@ -854,25 +966,37 @@ public static class SpanAddKernel
             int chunks = lv.Length;
             Vector<long> bv = new Vector<long>(right);
             Vector<long> overflow = Vector<long>.Zero;
+            Vector<long> outOfRange = Vector<long>.Zero;
+            Vector<long> loVec = new Vector<long>(lower);
+            Vector<long> hiVec = new Vector<long>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<long> a = lv[k];
                 Vector<long> c = a + bv;
                 overflow |= (a ^ c) & (bv ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<long>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<long>.Zero;
             i = chunks * Vector<long>.Count;
         }
 #endif
         for (; i < left.Length; i++)
-            result[i] = checked(left[i] + right);
+        {
+            var value = checked(left[i] + right);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void SubtractBroadcastColumnScalar32(ReadOnlySpan<int> left, int right, Span<int> result)
+    private static bool SubtractBroadcastColumnScalar32(ReadOnlySpan<int> left, int right, Span<int> result, int lower, int upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
         {
@@ -881,25 +1005,37 @@ public static class SpanAddKernel
             int chunks = lv.Length;
             Vector<int> bv = new Vector<int>(right);
             Vector<int> overflow = Vector<int>.Zero;
+            Vector<int> outOfRange = Vector<int>.Zero;
+            Vector<int> loVec = new Vector<int>(lower);
+            Vector<int> hiVec = new Vector<int>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<int> a = lv[k];
                 Vector<int> c = a - bv;
                 overflow |= (a ^ bv) & (a ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<int>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<int>.Zero;
             i = chunks * Vector<int>.Count;
         }
 #endif
         for (; i < left.Length; i++)
-            result[i] = checked(left[i] - right);
+        {
+            var value = checked(left[i] - right);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void SubtractBroadcastColumnScalar64(ReadOnlySpan<long> left, long right, Span<long> result)
+    private static bool SubtractBroadcastColumnScalar64(ReadOnlySpan<long> left, long right, Span<long> result, long lower, long upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && left.Length >= Vector<long>.Count)
         {
@@ -908,25 +1044,37 @@ public static class SpanAddKernel
             int chunks = lv.Length;
             Vector<long> bv = new Vector<long>(right);
             Vector<long> overflow = Vector<long>.Zero;
+            Vector<long> outOfRange = Vector<long>.Zero;
+            Vector<long> loVec = new Vector<long>(lower);
+            Vector<long> hiVec = new Vector<long>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<long> a = lv[k];
                 Vector<long> c = a - bv;
                 overflow |= (a ^ bv) & (a ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<long>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<long>.Zero;
             i = chunks * Vector<long>.Count;
         }
 #endif
         for (; i < left.Length; i++)
-            result[i] = checked(left[i] - right);
+        {
+            var value = checked(left[i] - right);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void SubtractBroadcastScalarColumn32(int left, ReadOnlySpan<int> right, Span<int> result)
+    private static bool SubtractBroadcastScalarColumn32(int left, ReadOnlySpan<int> right, Span<int> result, int lower, int upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && right.Length >= Vector<int>.Count)
         {
@@ -935,25 +1083,37 @@ public static class SpanAddKernel
             int chunks = rv.Length;
             Vector<int> av = new Vector<int>(left);
             Vector<int> overflow = Vector<int>.Zero;
+            Vector<int> outOfRange = Vector<int>.Zero;
+            Vector<int> loVec = new Vector<int>(lower);
+            Vector<int> hiVec = new Vector<int>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<int> b = rv[k];
                 Vector<int> c = av - b;
                 overflow |= (av ^ b) & (av ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<int>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<int>.Zero;
             i = chunks * Vector<int>.Count;
         }
 #endif
         for (; i < right.Length; i++)
-            result[i] = checked(left - right[i]);
+        {
+            var value = checked(left - right[i]);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
-    private static void SubtractBroadcastScalarColumn64(long left, ReadOnlySpan<long> right, Span<long> result)
+    private static bool SubtractBroadcastScalarColumn64(long left, ReadOnlySpan<long> right, Span<long> result, long lower, long upper)
     {
         int i = 0;
+        bool outOfRangeSeen = false;
 #if NET5_0_OR_GREATER
         if (Vector.IsHardwareAccelerated && right.Length >= Vector<long>.Count)
         {
@@ -962,20 +1122,31 @@ public static class SpanAddKernel
             int chunks = rv.Length;
             Vector<long> av = new Vector<long>(left);
             Vector<long> overflow = Vector<long>.Zero;
+            Vector<long> outOfRange = Vector<long>.Zero;
+            Vector<long> loVec = new Vector<long>(lower);
+            Vector<long> hiVec = new Vector<long>(upper);
             for (int k = 0; k < chunks; k++)
             {
                 Vector<long> b = rv[k];
                 Vector<long> c = av - b;
                 overflow |= (av ^ b) & (av ^ c);
+                outOfRange |= Vector.LessThan(c, loVec) | Vector.GreaterThan(c, hiVec);
                 ov[k] = c;
             }
             if (Vector.LessThanAny(overflow, Vector<long>.Zero))
                 ThrowOverflow();
+            outOfRangeSeen |= outOfRange != Vector<long>.Zero;
             i = chunks * Vector<long>.Count;
         }
 #endif
         for (; i < right.Length; i++)
-            result[i] = checked(left - right[i]);
+        {
+            var value = checked(left - right[i]);
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

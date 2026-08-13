@@ -65,6 +65,33 @@ public static class DecimalRange
     }
 
     // ================================================================
+    // Inclusive bounds, for loops that fold the range test into the
+    // arithmetic rather than making a second pass over the output.
+    //
+    // A type whose precision the width cannot exceed yields the width's own
+    // limits, so the comparison is present but never trips. Using a sentinel
+    // magnitude instead would misreport MinValue, whose negation is itself.
+    // ================================================================
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void GetBounds(DecimalType type, out int lower, out int upper)
+    {
+        if (TryGetBound(type, out int bound)) { upper = bound - 1; lower = -upper; }
+        else { upper = int.MaxValue; lower = int.MinValue; }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void GetBounds(DecimalType type, out long lower, out long upper)
+    {
+        if (TryGetBound(type, out long bound)) { upper = bound - 1L; lower = -upper; }
+        else { upper = long.MaxValue; lower = long.MinValue; }
+    }
+
+    /// <summary>Reports a result that does not fit the type's precision.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowOutOfRange(DecimalType type) => ThrowOverflow(type);
+
+    // ================================================================
     // Scalar
     // ================================================================
 
