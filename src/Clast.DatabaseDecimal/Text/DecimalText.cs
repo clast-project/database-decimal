@@ -73,30 +73,34 @@ public static class DecimalText
     // Parse — UTF-16, throwing
     // ================================================================
 
-    public static Decimal32 ParseDecimal32(ReadOnlySpan<char> text, DecimalType type)
+    public static Decimal32 ParseDecimal32(ReadOnlySpan<char> text, DecimalType type,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
-        if (!TryParseDecimal32(text, type, out var result))
+        if (!TryParseDecimal32(text, type, out var result, rounding))
             throw new FormatException($"Cannot parse '{text.ToString()}' as {type}.");
         return result;
     }
 
-    public static Decimal64 ParseDecimal64(ReadOnlySpan<char> text, DecimalType type)
+    public static Decimal64 ParseDecimal64(ReadOnlySpan<char> text, DecimalType type,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
-        if (!TryParseDecimal64(text, type, out var result))
+        if (!TryParseDecimal64(text, type, out var result, rounding))
             throw new FormatException($"Cannot parse '{text.ToString()}' as {type}.");
         return result;
     }
 
-    public static Decimal128 ParseDecimal128(ReadOnlySpan<char> text, DecimalType type)
+    public static Decimal128 ParseDecimal128(ReadOnlySpan<char> text, DecimalType type,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
-        if (!TryParseDecimal128(text, type, out var result))
+        if (!TryParseDecimal128(text, type, out var result, rounding))
             throw new FormatException($"Cannot parse '{text.ToString()}' as {type}.");
         return result;
     }
 
-    public static Decimal256 ParseDecimal256(ReadOnlySpan<char> text, DecimalType type)
+    public static Decimal256 ParseDecimal256(ReadOnlySpan<char> text, DecimalType type,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
-        if (!TryParseDecimal256(text, type, out var result))
+        if (!TryParseDecimal256(text, type, out var result, rounding))
             throw new FormatException($"Cannot parse '{text.ToString()}' as {type}.");
         return result;
     }
@@ -105,10 +109,11 @@ public static class DecimalText
     // TryParse — UTF-16
     // ================================================================
 
-    public static bool TryParseDecimal32(ReadOnlySpan<char> text, DecimalType type, out Decimal32 result)
+    public static bool TryParseDecimal32(ReadOnlySpan<char> text, DecimalType type, out Decimal32 result,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         result = default;
-        if (!TryParseMantissa128(text, type.Scale, out Int128 mantissa, out bool isNegative))
+        if (!TryParseMantissa128(text, type.Scale, out Int128 mantissa, out bool isNegative, rounding))
             return false;
 
         if (isNegative) mantissa = -mantissa;
@@ -121,10 +126,11 @@ public static class DecimalText
         return true;
     }
 
-    public static bool TryParseDecimal64(ReadOnlySpan<char> text, DecimalType type, out Decimal64 result)
+    public static bool TryParseDecimal64(ReadOnlySpan<char> text, DecimalType type, out Decimal64 result,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         result = default;
-        if (!TryParseMantissa128(text, type.Scale, out Int128 mantissa, out bool isNegative))
+        if (!TryParseMantissa128(text, type.Scale, out Int128 mantissa, out bool isNegative, rounding))
             return false;
 
         if (isNegative) mantissa = -mantissa;
@@ -137,10 +143,11 @@ public static class DecimalText
         return true;
     }
 
-    public static bool TryParseDecimal128(ReadOnlySpan<char> text, DecimalType type, out Decimal128 result)
+    public static bool TryParseDecimal128(ReadOnlySpan<char> text, DecimalType type, out Decimal128 result,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         result = default;
-        if (!TryParseMantissa128(text, type.Scale, out Int128 mantissa, out bool isNegative))
+        if (!TryParseMantissa128(text, type.Scale, out Int128 mantissa, out bool isNegative, rounding))
             return false;
 
         if (isNegative) mantissa = -mantissa;
@@ -151,10 +158,11 @@ public static class DecimalText
         return true;
     }
 
-    public static bool TryParseDecimal256(ReadOnlySpan<char> text, DecimalType type, out Decimal256 result)
+    public static bool TryParseDecimal256(ReadOnlySpan<char> text, DecimalType type, out Decimal256 result,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         result = default;
-        if (!TryParseMantissa256(text, type.Scale, out Int256 mantissa, out bool isNegative))
+        if (!TryParseMantissa256(text, type.Scale, out Int256 mantissa, out bool isNegative, rounding))
             return false;
 
         if (isNegative) mantissa = -mantissa;
@@ -169,30 +177,34 @@ public static class DecimalText
     // Parse — UTF-8, throwing
     // ================================================================
 
-    public static Decimal32 ParseDecimal32(ReadOnlySpan<byte> utf8, DecimalType type)
+    public static Decimal32 ParseDecimal32(ReadOnlySpan<byte> utf8, DecimalType type,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
-        if (!TryParseDecimal32(utf8, type, out var result))
+        if (!TryParseDecimal32(utf8, type, out var result, rounding))
             throw new FormatException($"Cannot parse UTF-8 input as {type}.");
         return result;
     }
 
-    public static Decimal64 ParseDecimal64(ReadOnlySpan<byte> utf8, DecimalType type)
+    public static Decimal64 ParseDecimal64(ReadOnlySpan<byte> utf8, DecimalType type,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
-        if (!TryParseDecimal64(utf8, type, out var result))
+        if (!TryParseDecimal64(utf8, type, out var result, rounding))
             throw new FormatException($"Cannot parse UTF-8 input as {type}.");
         return result;
     }
 
-    public static Decimal128 ParseDecimal128(ReadOnlySpan<byte> utf8, DecimalType type)
+    public static Decimal128 ParseDecimal128(ReadOnlySpan<byte> utf8, DecimalType type,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
-        if (!TryParseDecimal128(utf8, type, out var result))
+        if (!TryParseDecimal128(utf8, type, out var result, rounding))
             throw new FormatException($"Cannot parse UTF-8 input as {type}.");
         return result;
     }
 
-    public static Decimal256 ParseDecimal256(ReadOnlySpan<byte> utf8, DecimalType type)
+    public static Decimal256 ParseDecimal256(ReadOnlySpan<byte> utf8, DecimalType type,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
-        if (!TryParseDecimal256(utf8, type, out var result))
+        if (!TryParseDecimal256(utf8, type, out var result, rounding))
             throw new FormatException($"Cannot parse UTF-8 input as {type}.");
         return result;
     }
@@ -201,32 +213,36 @@ public static class DecimalText
     // TryParse — UTF-8 (widen bytes to chars, delegate to char version)
     // ================================================================
 
-    public static bool TryParseDecimal32(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal32 result)
+    public static bool TryParseDecimal32(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal32 result,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         Span<char> chars = stackalloc char[utf8.Length];
         for (int i = 0; i < utf8.Length; i++) chars[i] = (char)utf8[i];
-        return TryParseDecimal32(chars, type, out result);
+        return TryParseDecimal32(chars, type, out result, rounding);
     }
 
-    public static bool TryParseDecimal64(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal64 result)
+    public static bool TryParseDecimal64(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal64 result,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         Span<char> chars = stackalloc char[utf8.Length];
         for (int i = 0; i < utf8.Length; i++) chars[i] = (char)utf8[i];
-        return TryParseDecimal64(chars, type, out result);
+        return TryParseDecimal64(chars, type, out result, rounding);
     }
 
-    public static bool TryParseDecimal128(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal128 result)
+    public static bool TryParseDecimal128(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal128 result,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         Span<char> chars = stackalloc char[utf8.Length];
         for (int i = 0; i < utf8.Length; i++) chars[i] = (char)utf8[i];
-        return TryParseDecimal128(chars, type, out result);
+        return TryParseDecimal128(chars, type, out result, rounding);
     }
 
-    public static bool TryParseDecimal256(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal256 result)
+    public static bool TryParseDecimal256(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal256 result,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         Span<char> chars = stackalloc char[utf8.Length];
         for (int i = 0; i < utf8.Length; i++) chars[i] = (char)utf8[i];
-        return TryParseDecimal256(chars, type, out result);
+        return TryParseDecimal256(chars, type, out result, rounding);
     }
 
     // ================================================================
@@ -473,11 +489,12 @@ public static class DecimalText
     /// <summary>
     /// Parses decimal text into an unsigned Int128 mantissa, tracking sign
     /// separately. The mantissa is scaled to the target scale, with
-    /// banker's rounding applied for excess fractional digits.
+    /// <paramref name="rounding"/> applied to excess fractional digits.
     /// </summary>
     private static bool TryParseMantissa128(
         ReadOnlySpan<char> text, byte targetScale,
-        out Int128 mantissa, out bool isNegative)
+        out Int128 mantissa, out bool isNegative,
+        DecimalRounding rounding)
     {
         mantissa = Int128.Zero;
         isNegative = false;
@@ -555,12 +572,14 @@ public static class DecimalText
             mantissa *= PowersOf10.Int128[scaleUp];
         }
 
-        // Apply banker's rounding for excess fractional digits
+        // Round the excess fractional digits. The mantissa is a magnitude here
+        // (the sign is tracked separately), so incrementing rounds away from zero.
         if (roundingDigit >= 0)
         {
             if (roundingDigit > 5 || (roundingDigit == 5 && hasNonZeroAfterRounding))
                 mantissa++;
-            else if (roundingDigit == 5 && !hasNonZeroAfterRounding && (mantissa & 1) != 0)
+            else if (roundingDigit == 5 && !hasNonZeroAfterRounding
+                && (rounding == DecimalRounding.HalfUp || (mantissa & 1) != 0))
                 mantissa++;
         }
 
@@ -573,7 +592,8 @@ public static class DecimalText
     /// </summary>
     private static bool TryParseMantissa256(
         ReadOnlySpan<char> text, byte targetScale,
-        out Int256 mantissa, out bool isNegative)
+        out Int256 mantissa, out bool isNegative,
+        DecimalRounding rounding)
     {
         mantissa = Int256.Zero;
         isNegative = false;
@@ -654,7 +674,8 @@ public static class DecimalText
         {
             if (roundingDigit > 5 || (roundingDigit == 5 && hasNonZeroAfterRounding))
                 mantissa += Int256.One;
-            else if (roundingDigit == 5 && !hasNonZeroAfterRounding && (mantissa & Int256.One) != Int256.Zero)
+            else if (roundingDigit == 5 && !hasNonZeroAfterRounding
+                && (rounding == DecimalRounding.HalfUp || (mantissa & Int256.One) != Int256.Zero))
                 mantissa += Int256.One;
         }
 

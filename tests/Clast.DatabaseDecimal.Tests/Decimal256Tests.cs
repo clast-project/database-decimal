@@ -253,8 +253,17 @@ public class Decimal256Tests
     public void ScaleHelper_DivideRoundHalfEven_256()
     {
         // Banker's rounding: 2.5 rounds to 2, 3.5 rounds to 4
-        Assert.Equal((Int256)2, ScaleHelper.DivideRoundHalfEven((Int256)25, (Int256)10));
-        Assert.Equal((Int256)4, ScaleHelper.DivideRoundHalfEven((Int256)35, (Int256)10));
-        Assert.Equal((Int256)3, ScaleHelper.DivideRoundHalfEven((Int256)26, (Int256)10));
+        Assert.Equal((Int256)2, ScaleHelper.DivideRound((Int256)25, (Int256)10, DecimalRounding.HalfEven));
+        Assert.Equal((Int256)4, ScaleHelper.DivideRound((Int256)35, (Int256)10, DecimalRounding.HalfEven));
+        Assert.Equal((Int256)3, ScaleHelper.DivideRound((Int256)26, (Int256)10, DecimalRounding.HalfEven));
+    }
+
+    [Fact]
+    public void ScaleHelper_DivideRoundHalfUp_256()
+    {
+        // Half away from zero: 2.5 rounds to 3, 3.5 rounds to 4
+        Assert.Equal((Int256)3, ScaleHelper.DivideRound((Int256)25, (Int256)10, DecimalRounding.HalfUp));
+        Assert.Equal((Int256)4, ScaleHelper.DivideRound((Int256)35, (Int256)10, DecimalRounding.HalfUp));
+        Assert.Equal((Int256)(-3), ScaleHelper.DivideRound((Int256)(-25), (Int256)10, DecimalRounding.HalfUp));
     }
 }

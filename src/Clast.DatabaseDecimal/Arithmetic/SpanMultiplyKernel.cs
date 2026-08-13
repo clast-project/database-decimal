@@ -28,7 +28,8 @@ public static class SpanMultiplyKernel
     public static void Multiply(
         ReadOnlySpan<int> left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
-        Span<long> result, DecimalType resultType)
+        Span<long> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -42,7 +43,7 @@ public static class SpanMultiplyKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale64((long)left[i] * right[i], scaleDelta);
+                result[i] = Rescale64((long)left[i] * right[i], scaleDelta, rounding);
         }
     }
 
@@ -50,7 +51,8 @@ public static class SpanMultiplyKernel
     public static void Multiply(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
-        Span<Int128> result, DecimalType resultType)
+        Span<Int128> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -65,7 +67,7 @@ public static class SpanMultiplyKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale128((Int128)left[i] * right[i], scaleDelta);
+                result[i] = Rescale128((Int128)left[i] * right[i], scaleDelta, rounding);
         }
     }
 
@@ -73,7 +75,8 @@ public static class SpanMultiplyKernel
     public static void MultiplyWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
-        Span<Int256> result, DecimalType resultType)
+        Span<Int256> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -88,68 +91,60 @@ public static class SpanMultiplyKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale256(Int256.BigMul(left[i], right[i]), scaleDelta);
+                result[i] = Rescale256(Int256.BigMul(left[i], right[i]), scaleDelta, rounding);
         }
     }
 
     // ================================================================
     // Multiply — column * column, same width (128-bit and 256-bit)
-    // For 128-bit, pre-reduces scale of one operand to stay within range.
     // ================================================================
 
-    /// <summary>128×128 → 128 bit multiply with pre-scale-reduction.</summary>
+    /// <summary>
+    /// 128×128 → 128 bit multiply. When the result scale differs from s1+s2 the
+    /// exact product is formed in 256 bits and the product is rescaled, which
+    /// is not the same as reducing an operand's scale first: precision clamping
+    /// can demand more digits than an operand has, which would zero it.
+    /// </summary>
     public static void Multiply(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
-        Span<Int128> result, DecimalType resultType)
+        Span<Int128> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
         int rawScale = leftType.Scale + rightType.Scale;
-        int scaleReduction = rawScale - resultType.Scale;
-        bool reduceLeft = leftType.Scale >= rightType.Scale;
+        int scaleDelta = resultType.Scale - rawScale;
 
-        if (scaleReduction <= 0)
+        if (scaleDelta == 0)
         {
-            // No reduction needed (or need to scale up the product)
-            int scaleDelta = resultType.Scale - rawScale;
             for (int i = 0; i < left.Length; i++)
-            {
-                Int128 product = checked(left[i] * right[i]);
-                result[i] = scaleDelta != 0 ? Rescale128(product, scaleDelta) : product;
-            }
-        }
-        else if (reduceLeft)
-        {
-            int newLeftScale = leftType.Scale - scaleReduction;
-            for (int i = 0; i < left.Length; i++)
-            {
-                Int128 l = ScaleHelper.Rescale128(left[i], leftType.Scale, newLeftScale);
-                result[i] = checked(l * right[i]);
-            }
+                result[i] = checked(left[i] * right[i]);
         }
         else
         {
-            int newRightScale = rightType.Scale - scaleReduction;
             for (int i = 0; i < left.Length; i++)
-            {
-                Int128 r = ScaleHelper.Rescale128(right[i], rightType.Scale, newRightScale);
-                result[i] = checked(left[i] * r);
-            }
+                result[i] = MultiplyKernel.MultiplyRescale128(
+                    left[i], right[i], rawScale, resultType.Scale, rounding);
         }
     }
 
-    /// <summary>256×256 → 256 bit multiply with pre-scale-reduction.</summary>
+    /// <summary>
+    /// 256×256 → 256 bit multiply. There is no 512-bit intermediate for the
+    /// exact product, so a scale reduction is split across the operands (see
+    /// <see cref="MultiplyKernel.Multiply(Values.Decimal256, DecimalType, Values.Decimal256, DecimalType, DecimalType, DecimalRounding)"/>
+    /// for the accuracy caveat).
+    /// </summary>
     public static void Multiply(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
-        Span<Int256> result, DecimalType resultType)
+        Span<Int256> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
         int rawScale = leftType.Scale + rightType.Scale;
         int scaleReduction = rawScale - resultType.Scale;
-        bool reduceLeft = leftType.Scale >= rightType.Scale;
 
         if (scaleReduction <= 0)
         {
@@ -157,25 +152,21 @@ public static class SpanMultiplyKernel
             for (int i = 0; i < left.Length; i++)
             {
                 Int256 product = left[i] * right[i];
-                result[i] = scaleDelta != 0 ? Rescale256(product, scaleDelta) : product;
-            }
-        }
-        else if (reduceLeft)
-        {
-            int newLeftScale = leftType.Scale - scaleReduction;
-            for (int i = 0; i < left.Length; i++)
-            {
-                Int256 l = ScaleHelper.Rescale256(left[i], leftType.Scale, newLeftScale);
-                result[i] = l * right[i];
+                result[i] = scaleDelta != 0 ? Rescale256(product, scaleDelta, rounding) : product;
             }
         }
         else
         {
-            int newRightScale = rightType.Scale - scaleReduction;
+            MultiplyKernel.SplitScaleReduction(scaleReduction, leftType.Scale, rightType.Scale,
+                out int leftReduction, out int rightReduction);
+            int leftDelta = -leftReduction;
+            int rightDelta = -rightReduction;
+
             for (int i = 0; i < left.Length; i++)
             {
-                Int256 r = ScaleHelper.Rescale256(right[i], rightType.Scale, newRightScale);
-                result[i] = left[i] * r;
+                Int256 l = Rescale256(left[i], leftDelta, rounding);
+                Int256 r = Rescale256(right[i], rightDelta, rounding);
+                result[i] = l * r;
             }
         }
     }
@@ -187,7 +178,8 @@ public static class SpanMultiplyKernel
     public static void Multiply(
         ReadOnlySpan<int> left, DecimalType leftType,
         int right, DecimalType rightType,
-        Span<long> result, DecimalType resultType)
+        Span<long> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -202,14 +194,15 @@ public static class SpanMultiplyKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale64((long)left[i] * wideRight, scaleDelta);
+                result[i] = Rescale64((long)left[i] * wideRight, scaleDelta, rounding);
         }
     }
 
     public static void Multiply(
         ReadOnlySpan<long> left, DecimalType leftType,
         long right, DecimalType rightType,
-        Span<Int128> result, DecimalType resultType)
+        Span<Int128> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -225,14 +218,15 @@ public static class SpanMultiplyKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale128((Int128)left[i] * wideRight, scaleDelta);
+                result[i] = Rescale128((Int128)left[i] * wideRight, scaleDelta, rounding);
         }
     }
 
     public static void Multiply(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,
-        Span<Int256> result, DecimalType resultType)
+        Span<Int256> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -247,7 +241,7 @@ public static class SpanMultiplyKernel
         else
         {
             for (int i = 0; i < left.Length; i++)
-                result[i] = Rescale256(Int256.BigMul(left[i], right), scaleDelta);
+                result[i] = Rescale256(Int256.BigMul(left[i], right), scaleDelta, rounding);
         }
     }
 
@@ -256,24 +250,27 @@ public static class SpanMultiplyKernel
     // ================================================================
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static long Rescale64(long value, int delta)
+    private static long Rescale64(long value, int delta, DecimalRounding rounding)
     {
+        if (delta == 0) return value;
         if (delta > 0) return checked(value * PowersOf10.Int64[delta]);
-        return ScaleHelper.DivideRoundHalfEven(value, PowersOf10.Int64[-delta]);
+        return ScaleHelper.DivideRound(value, PowersOf10.Int64[-delta], rounding);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int128 Rescale128(Int128 value, int delta)
+    private static Int128 Rescale128(Int128 value, int delta, DecimalRounding rounding)
     {
+        if (delta == 0) return value;
         if (delta > 0) return checked(value * PowersOf10.Int128[delta]);
-        return ScaleHelper.DivideRoundHalfEven(value, PowersOf10.Int128[-delta]);
+        return ScaleHelper.DivideRound(value, PowersOf10.Int128[-delta], rounding);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Int256 Rescale256(Int256 value, int delta)
+    private static Int256 Rescale256(Int256 value, int delta, DecimalRounding rounding)
     {
+        if (delta == 0) return value;
         if (delta > 0) return checked(value * PowersOf10.Int256[delta]);
-        return ScaleHelper.DivideRoundHalfEven(value, PowersOf10.Int256[-delta]);
+        return ScaleHelper.DivideRound(value, PowersOf10.Int256[-delta], rounding);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

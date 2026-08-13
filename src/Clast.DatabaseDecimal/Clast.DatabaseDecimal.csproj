@@ -11,12 +11,15 @@
   <PropertyGroup>
     <PackageId>Clast.DatabaseDecimal</PackageId>
     <!-- Local default only; release.yml packs with -p:Version=<tag>. -->
-    <Version>0.2.0</Version>
-    <!-- Held across the whole 0.2.x line so consumers don't need a binding
+    <Version>0.3.0</Version>
+    <!-- Held across the whole 0.3.x line so consumers don't need a binding
          redirect per patch. Under 0.x semver the minor is the breaking slot,
-         so bump this to 0.3.0.0 at the next breaking release. Hardcoded rather
-         than derived from $(Version), which the release tag overrides. -->
-    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+         so bump this to 0.4.0.0 at the next breaking release. Hardcoded rather
+         than derived from $(Version), which the release tag overrides.
+         0.3.0 adds an optional DecimalRounding argument to the kernel, rescale,
+         and parse entry points: source-compatible, but the added parameter
+         changes the signatures, so callers must recompile. -->
+    <AssemblyVersion>0.3.0.0</AssemblyVersion>
     <!-- FileVersion would otherwise default to the pinned AssemblyVersion; track
          the real version so builds stay distinguishable. Skipped for prerelease
          values, which are not valid Win32 file versions. -->
