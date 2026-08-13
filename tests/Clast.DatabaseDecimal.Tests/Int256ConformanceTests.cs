@@ -23,8 +23,13 @@ public class Int256ConformanceTests
 {
     private static readonly BigInteger Width = NumericOracle.TwoTo256;
 
-    private static IReadOnlyList<BigInteger> Signed => NumericOracle.SignedValues(256);
-    private static IReadOnlyList<BigInteger> Unsigned => NumericOracle.UnsignedValues(256);
+    // Built once. As expression-bodied properties these were rebuilt on every
+    // access, so the inner loop of each O(n^2) test regenerated the whole corpus
+    // per outer element.
+    private static readonly IReadOnlyList<BigInteger> Signed = NumericOracle.SignedValues(256);
+    private static readonly IReadOnlyList<BigInteger> Unsigned = NumericOracle.UnsignedValues(256);
+    private static readonly IReadOnlyList<BigInteger> Signed128 = NumericOracle.SignedValues(128);
+    private static readonly IReadOnlyList<BigInteger> Unsigned128 = NumericOracle.UnsignedValues(128);
 
     private static void AssertSigned(BigInteger expected, Int256 actual, string op)
     {
@@ -116,7 +121,9 @@ public class Int256ConformanceTests
             {
                 AssertSigned(NumericOracle.ShiftLeft(a, s), x << s, $"{a} << {s}");
 
-                // Arithmetic right shift floors, which BigInteger's >> also does.
+                // Arithmetic right shift floors. NumericOracle.ShiftRight computes
+                // that as floor division rather than using BigInteger's >>, which
+                // disagrees with itself across targets — see the note there.
                 AssertSigned(NumericOracle.ShiftRight(a, s), x >> s, $"{a} >> {s}");
 
                 // Logical right shift operates on the unsigned bit pattern.
@@ -170,10 +177,10 @@ public class Int256ConformanceTests
     [Fact]
     public void Int256_BigMulMatchesBigInteger()
     {
-        foreach (BigInteger a in NumericOracle.SignedValues(128))
+        foreach (BigInteger a in Signed128)
         {
             Int128 x = NumericOracle.ToInt128(a);
-            foreach (BigInteger b in NumericOracle.SignedValues(128))
+            foreach (BigInteger b in Signed128)
             {
                 Int128 y = NumericOracle.ToInt128(b);
                 AssertSigned(a * b, Int256.BigMul(x, y), $"BigMul({a}, {b})");
@@ -260,10 +267,10 @@ public class Int256ConformanceTests
     [Fact]
     public void UInt256_BigMulMatchesBigInteger()
     {
-        foreach (BigInteger a in NumericOracle.UnsignedValues(128))
+        foreach (BigInteger a in Unsigned128)
         {
             UInt128 x = NumericOracle.ToUInt128(a);
-            foreach (BigInteger b in NumericOracle.UnsignedValues(128))
+            foreach (BigInteger b in Unsigned128)
             {
                 UInt128 y = NumericOracle.ToUInt128(b);
                 AssertUnsigned(a * b, UInt256.BigMul(x, y), $"BigMul({a}, {b})");

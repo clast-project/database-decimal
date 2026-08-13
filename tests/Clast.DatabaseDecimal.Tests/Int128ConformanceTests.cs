@@ -34,8 +34,11 @@ public class Int128ConformanceTests
     private static readonly BigInteger SignedMin = -(BigInteger.One << 127);
     private static readonly BigInteger UnsignedMax = (BigInteger.One << 128) - 1;
 
-    private static IReadOnlyList<BigInteger> Signed => NumericOracle.SignedValues(128);
-    private static IReadOnlyList<BigInteger> Unsigned => NumericOracle.UnsignedValues(128);
+    // Built once; as expression-bodied properties the inner loop of each O(n^2)
+    // test regenerated the whole corpus per outer element.
+    private static readonly IReadOnlyList<BigInteger> Signed = NumericOracle.SignedValues(128);
+    private static readonly IReadOnlyList<BigInteger> Unsigned = NumericOracle.UnsignedValues(128);
+    private static readonly IReadOnlyList<BigInteger> Signed64 = NumericOracle.SignedValues(64);
 
     private static void AssertSigned(BigInteger expected, Int128 actual, string op)
     {
@@ -357,7 +360,7 @@ public class Int128ConformanceTests
     [Fact]
     public void Int128_WideningConversions()
     {
-        foreach (BigInteger a in NumericOracle.SignedValues(64))
+        foreach (BigInteger a in Signed64)
         {
             long v = (long)NumericOracle.WrapSigned(a, BigInteger.One << 64);
             AssertSigned(v, (Int128)v, $"(Int128){v}");
