@@ -168,7 +168,7 @@ public static class SpanMultiplyKernel
             int scaleDelta = resultType.Scale - rawScale;
             for (int i = 0; i < left.Length; i++)
             {
-                Int256 product = left[i] * right[i];
+                Int256 product = checked(left[i] * right[i]);
                 result[i] = scaleDelta != 0 ? ScaleHelper.RescaleByDelta256(product, scaleDelta, rounding) : product;
             }
         }
@@ -183,7 +183,7 @@ public static class SpanMultiplyKernel
             {
                 Int256 l = ScaleHelper.RescaleByDelta256(left[i], leftDelta, rounding);
                 Int256 r = ScaleHelper.RescaleByDelta256(right[i], rightDelta, rounding);
-                result[i] = l * r;
+                result[i] = checked(l * r);
             }
         }
 

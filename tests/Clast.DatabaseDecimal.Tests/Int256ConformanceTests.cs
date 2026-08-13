@@ -13,11 +13,9 @@ namespace Clast.DatabaseDecimal.Tests;
 /// 128-bit polyfills they have no BCL implementation to fall back on.
 /// </summary>
 /// <remarks>
-/// Checked multiplication is absent below because neither type defines
-/// <c>operator checked *</c> — C# then binds <c>checked(a * b)</c> to the
-/// unchecked operator and it wraps. That is tracked as its own defect rather
-/// than asserted here, since a test cannot both document the current behaviour
-/// and demand the correct one. See issue #6.
+/// Checked multiplication is covered here now that both types define
+/// <c>operator checked *</c>. Before they did, C# bound <c>checked(a * b)</c>
+/// to the unchecked operator and the overflow passed silently.
 /// </remarks>
 public class Int256ConformanceTests
 {
@@ -331,6 +329,89 @@ public class Int256ConformanceTests
                 else AssertUnsigned(diff, checked(x - y), $"checked({a} - {b})");
             }
         }
+    }
+
+    [Fact]
+    public void Int256_CheckedMultiply()
+    {
+        BigInteger max = (BigInteger.One << 255) - 1;
+        BigInteger min = -(BigInteger.One << 255);
+
+        foreach (BigInteger a in Signed)
+        {
+            Int256 x = NumericOracle.ToInt256(a);
+            foreach (BigInteger b in Signed)
+            {
+                Int256 y = NumericOracle.ToInt256(b);
+                BigInteger product = a * b;
+
+                if (product > max || product < min)
+                    Assert.Throws<OverflowException>(() => checked(x * y));
+                else
+                    AssertSigned(product, checked(x * y), $"checked({a} * {b})");
+            }
+        }
+    }
+
+    [Fact]
+    public void UInt256_CheckedMultiply()
+    {
+        BigInteger max = (BigInteger.One << 256) - 1;
+
+        foreach (BigInteger a in Unsigned)
+        {
+            UInt256 x = NumericOracle.ToUInt256(a);
+            foreach (BigInteger b in Unsigned)
+            {
+                UInt256 y = NumericOracle.ToUInt256(b);
+                BigInteger product = a * b;
+
+                if (product > max)
+                    Assert.Throws<OverflowException>(() => checked(x * y));
+                else
+                    AssertUnsigned(product, checked(x * y), $"checked({a} * {b})");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The band where the bit-length test cannot decide on its own: operands
+    /// whose lengths sum to exactly 257, where the product may or may not fit.
+    /// </summary>
+    [Fact]
+    public void UInt256_CheckedMultiply_AmbiguousBitLengthBand()
+    {
+        UInt256 twoTo127 = NumericOracle.ToUInt256(BigInteger.One << 127);
+        UInt256 twoTo128 = NumericOracle.ToUInt256(BigInteger.One << 128);
+
+        // 128 + 129 == 257, and 2^255 fits.
+        Assert.Equal(NumericOracle.ToUInt256(BigInteger.One << 255), checked(twoTo127 * twoTo128));
+
+        // 129 + 129 == 258, and 2^256 does not.
+        Assert.Throws<OverflowException>(() => checked(twoTo128 * twoTo128));
+
+        // Just inside and just outside on the same bit lengths.
+        UInt256 max = UInt256.MaxValue;
+        Assert.Throws<OverflowException>(() => checked(max * (UInt256)2UL));
+        Assert.Equal(max, checked(max * UInt256.One));
+    }
+
+    /// <summary>The case reported in issue #6.</summary>
+    [Fact]
+    public void Int256_CheckedMultiply_NoLongerWrapsToZero()
+    {
+        Int256 twoTo128 = Int256.One << 128;
+        Assert.Throws<OverflowException>(() => checked(twoTo128 * twoTo128));
+
+        Int256 twoTo254 = Int256.One << 254;
+        Assert.Throws<OverflowException>(() => checked(twoTo254 * (Int256)4));
+
+        // -2^255 is representable, so this one must not throw.
+        Int256 twoTo127 = Int256.One << 127;
+        Assert.Equal(Int256.MinValue, checked(twoTo127 * -(Int256.One << 128)));
+
+        // +2^255 is not.
+        Assert.Throws<OverflowException>(() => checked(twoTo127 * (Int256.One << 128)));
     }
 
     [Fact]

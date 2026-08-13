@@ -126,7 +126,7 @@ public static class MultiplyKernel
 
         if (scaleReduction <= 0)
         {
-            Int256 product = left.Mantissa * right.Mantissa;
+            Int256 product = checked(left.Mantissa * right.Mantissa);
             if (scaleReduction < 0)
                 product = ScaleHelper.Rescale256(product, rawScale, resultType.Scale, rounding);
             return new Decimal256(DecimalRange.Enforce(product, resultType, overflow));
@@ -137,7 +137,7 @@ public static class MultiplyKernel
 
         Int256 l = ScaleHelper.Rescale256(left.Mantissa, leftType.Scale, leftType.Scale - leftReduction, rounding);
         Int256 r = ScaleHelper.Rescale256(right.Mantissa, rightType.Scale, rightType.Scale - rightReduction, rounding);
-        return new Decimal256(DecimalRange.Enforce(l * r, resultType, overflow));
+        return new Decimal256(DecimalRange.Enforce(checked(l * r), resultType, overflow));
     }
 
     /// <summary>

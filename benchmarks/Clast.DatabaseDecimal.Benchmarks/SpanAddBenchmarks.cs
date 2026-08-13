@@ -35,6 +35,7 @@ public class SpanAddBenchmarks
     private static readonly DecimalType T64S2 = DecimalType.Numeric(precision: 18, scale: 2);
     private static readonly DecimalType T128S2 = DecimalType.Numeric(precision: 38, scale: 2);
     private static readonly DecimalType T256S2 = DecimalType.Numeric(precision: 76, scale: 2);
+    private static readonly DecimalType T256S4 = DecimalType.Numeric(precision: 76, scale: 4);
 
     [GlobalSetup]
     public void Setup()
@@ -91,6 +92,12 @@ public class SpanAddBenchmarks
     [Benchmark]
     public void Add_Int256_SameScale() =>
         SpanAddKernel.Add(_i256Left, T256S2, _i256Right, T256S2, _i256Result, T256S2);
+
+    // Scaling up multiplies each mantissa by a power of ten under checked
+    // arithmetic, so this is the path that pays for Int256's checked multiply.
+    [Benchmark]
+    public void Add_Int256_RescaleUp() =>
+        SpanAddKernel.Add(_i256Left, T256S2, _i256Right, T256S4, _i256Result, T256S4);
 
     [Benchmark]
     public void AddWiden_Int32_To_Int64_SameScale() =>

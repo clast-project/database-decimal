@@ -20,12 +20,6 @@ namespace Clast.DatabaseDecimal.Tests;
 /// happened to straddle a boundary. Both are covered here now: reintroducing
 /// either fault fails <see cref="Int128_CheckedAddSubtract"/> or
 /// <see cref="Int128_CheckedMultiply"/> on net472.
-/// <para>
-/// UInt128 checked multiplication is absent below: the BCL defines
-/// <c>operator checked *</c> and the polyfill does not, so the two targets
-/// genuinely disagree. Asserting the correct behaviour would fail on net472
-/// until the operator exists, which is tracked in issue #6.
-/// </para>
 /// </remarks>
 public class Int128ConformanceTests
 {
@@ -321,6 +315,25 @@ public class Int128ConformanceTests
                 BigInteger diff = a - b;
                 if (diff < BigInteger.Zero) Assert.Throws<OverflowException>(() => checked(x - y));
                 else AssertUnsigned(diff, checked(x - y), $"checked({a} - {b})");
+            }
+        }
+    }
+
+    [Fact]
+    public void UInt128_CheckedMultiply()
+    {
+        foreach (BigInteger a in Unsigned)
+        {
+            UInt128 x = NumericOracle.ToUInt128(a);
+            foreach (BigInteger b in Unsigned)
+            {
+                UInt128 y = NumericOracle.ToUInt128(b);
+                BigInteger product = a * b;
+
+                if (product > UnsignedMax)
+                    Assert.Throws<OverflowException>(() => checked(x * y));
+                else
+                    AssertUnsigned(product, checked(x * y), $"checked({a} * {b})");
             }
         }
     }
