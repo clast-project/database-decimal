@@ -28,14 +28,20 @@ Every kernel, `ScaleHelper` rescale helper, and `DecimalText` parse method takes
 an optional trailing `DecimalRounding`:
 
 ```csharp
+var intType = DecimalType.Numeric(precision: 9, scale: 0);
+var oneDecimal = DecimalType.Numeric(precision: 18, scale: 1);
+var five = new Decimal32(5);
+var two = new Decimal32(2);
+
 // Banker's rounding — the default, and what IEEE 754 and Math.Round do.
-DivideKernel.Divide(five, t, two, t, resultType);                          // 2
-ScaleHelper.Rescale128(25, fromScale: 1, toScale: 0);                      // 2
+DivideKernel.Divide(five, intType, two, intType, intType);                      // 2
+ScaleHelper.Rescale128(25, fromScale: 1, toScale: 0);                           // 2
+DecimalText.ParseDecimal64("1.45".AsSpan(), oneDecimal);                        // 1.4
 
 // Half away from zero — what Spark, SQL Server, PostgreSQL, and MySQL do.
-DivideKernel.Divide(five, t, two, t, resultType, DecimalRounding.HalfUp);  // 3
-ScaleHelper.Rescale128(25, 1, 0, DecimalRounding.HalfUp);                  // 3
-DecimalText.ParseDecimal64("1.45".AsSpan(), scale1, DecimalRounding.HalfUp); // 1.5
+DivideKernel.Divide(five, intType, two, intType, intType, DecimalRounding.HalfUp); // 3
+ScaleHelper.Rescale128(25, 1, 0, DecimalRounding.HalfUp);                          // 3
+DecimalText.ParseDecimal64("1.45".AsSpan(), oneDecimal, DecimalRounding.HalfUp);   // 1.5
 ```
 
 The default is `HalfEven` so the argument can be omitted without changing

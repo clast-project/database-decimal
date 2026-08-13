@@ -133,6 +133,56 @@ public class RoundingModeTests
         }
     }
 
+    /// <summary>
+    /// A divisor of MinValue has no positive counterpart, so a signed
+    /// magnitude wraps back to MinValue and every comparison against
+    /// floor(|divisor|/2) reads as "above the midpoint". Mantissas within their
+    /// declared precision never reach MinValue, but the kernels do not enforce
+    /// that, so the rounding core has to stay correct on its own.
+    /// </summary>
+    [Theory]
+    [InlineData(DecimalRounding.HalfEven)]
+    [InlineData(DecimalRounding.HalfUp)]
+    public void DivideRound_MinValueDivisor_RoundsTowardZero(DecimalRounding rounding)
+    {
+        // 1 / int.MinValue is far below the midpoint, so it rounds to zero.
+        Assert.Equal(0, ScaleHelper.DivideRound(1, int.MinValue, rounding));
+        Assert.Equal(0, ScaleHelper.DivideRound(-1, int.MinValue, rounding));
+        Assert.Equal(0L, ScaleHelper.DivideRound(1L, long.MinValue, rounding));
+        Assert.Equal(0L, ScaleHelper.DivideRound(-1L, long.MinValue, rounding));
+        Assert.Equal(Int128.Zero, ScaleHelper.DivideRound(Int128.One, Int128.MinValue, rounding));
+        Assert.Equal(Int256.Zero, ScaleHelper.DivideRound(Int256.One, Int256.MinValue, rounding));
+    }
+
+    [Theory]
+    [InlineData(DecimalRounding.HalfEven)]
+    [InlineData(DecimalRounding.HalfUp)]
+    public void DivideRound_MinValueDivisor_AtTheMidpoint(DecimalRounding rounding)
+    {
+        // |dividend| == |divisor| / 2 exactly: the true quotient is -0.5, so
+        // half-even keeps zero and half-up goes to -1.
+        int expected = rounding == DecimalRounding.HalfUp ? -1 : 0;
+
+        Assert.Equal(expected, ScaleHelper.DivideRound(1 << 30, int.MinValue, rounding));
+        Assert.Equal((long)expected, ScaleHelper.DivideRound(1L << 62, long.MinValue, rounding));
+        Assert.Equal((Int128)expected, ScaleHelper.DivideRound(Int128.MaxValue / 2 + 1, Int128.MinValue, rounding));
+        Assert.Equal((Int256)expected, ScaleHelper.DivideRound(Int256.MaxValue / (Int256)2 + Int256.One, Int256.MinValue, rounding));
+    }
+
+    [Theory]
+    [InlineData(DecimalRounding.HalfEven)]
+    [InlineData(DecimalRounding.HalfUp)]
+    public void DivideRound_MinValueDividend(DecimalRounding rounding)
+    {
+        // The remainder can never itself be MinValue — |remainder| < |divisor|
+        // forces it — but a MinValue dividend still has to divide cleanly.
+        Assert.Equal(int.MinValue / 2, ScaleHelper.DivideRound(int.MinValue, 2, rounding));
+        Assert.Equal(long.MinValue / 2, ScaleHelper.DivideRound(long.MinValue, 2, rounding));
+        Assert.Equal(1, ScaleHelper.DivideRound(int.MinValue, int.MinValue, rounding));
+        Assert.Equal(Int128.One, ScaleHelper.DivideRound(Int128.MinValue, Int128.MinValue, rounding));
+        Assert.Equal(Int256.One, ScaleHelper.DivideRound(Int256.MinValue, Int256.MinValue, rounding));
+    }
+
     // ================================================================
     // DivideKernel — the case from issue #1
     // ================================================================

@@ -1,6 +1,7 @@
 // Copyright (c) clast-project. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
+using System.Runtime.CompilerServices;
 using Clast.DatabaseDecimal.Values;
 
 namespace Clast.DatabaseDecimal.Arithmetic;
@@ -113,7 +114,31 @@ public static class ScaleHelper
     // not the sign of the dividend. (The dividend is always the value being
     // rescaled and the divisor a positive power of 10 on the Rescale paths,
     // but DivideKernel passes a caller-supplied divisor that may be negative.)
+    //
+    // Magnitudes are unsigned: negating MinValue wraps back to MinValue, which
+    // would leave a negative "absolute" divisor and make every comparison
+    // against halfDivisor true. Mantissas within their declared precision can
+    // never be MinValue, but the kernels do not police that, and rounding the
+    // wrong way in silence is a worse failure than the range check they lack.
     // ================================================================
+
+    /// <summary>Magnitude of a value, correct for <see cref="int.MinValue"/>.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint UnsignedAbs(int value) => unchecked((uint)(value < 0 ? -value : value));
+
+    /// <summary>Magnitude of a value, correct for <see cref="long.MinValue"/>.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong UnsignedAbs(long value) => unchecked((ulong)(value < 0 ? -value : value));
+
+    /// <summary>Magnitude of a value, correct for <c>Int128.MinValue</c>.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static UInt128 UnsignedAbs(Int128 value) =>
+        unchecked((UInt128)(value < Int128.Zero ? -value : value));
+
+    /// <summary>Magnitude of a value, correct for <see cref="Int256.MinValue"/>.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static UInt256 UnsignedAbs(Int256 value) =>
+        (UInt256)(Int256.IsNegative(value) ? -value : value);
 
     /// <summary>
     /// Integer division rounded to nearest, with <paramref name="rounding"/>
@@ -125,9 +150,9 @@ public static class ScaleHelper
         int remainder = dividend % divisor;
         if (remainder == 0) return quotient;
 
-        int absRemainder = remainder < 0 ? -remainder : remainder;
-        int absDivisor = divisor < 0 ? -divisor : divisor;
-        int halfDivisor = absDivisor >> 1;
+        uint absRemainder = UnsignedAbs(remainder);
+        uint absDivisor = UnsignedAbs(divisor);
+        uint halfDivisor = absDivisor >> 1;
 
         bool roundAway = absRemainder > halfDivisor
             || (absRemainder == halfDivisor
@@ -148,9 +173,9 @@ public static class ScaleHelper
         long remainder = dividend % divisor;
         if (remainder == 0) return quotient;
 
-        long absRemainder = remainder < 0 ? -remainder : remainder;
-        long absDivisor = divisor < 0 ? -divisor : divisor;
-        long halfDivisor = absDivisor >> 1;
+        ulong absRemainder = UnsignedAbs(remainder);
+        ulong absDivisor = UnsignedAbs(divisor);
+        ulong halfDivisor = absDivisor >> 1;
 
         bool roundAway = absRemainder > halfDivisor
             || (absRemainder == halfDivisor
@@ -171,13 +196,13 @@ public static class ScaleHelper
         Int128 remainder = dividend % divisor;
         if (remainder == Int128.Zero) return quotient;
 
-        Int128 absRemainder = remainder < Int128.Zero ? -remainder : remainder;
-        Int128 absDivisor = divisor < Int128.Zero ? -divisor : divisor;
-        Int128 halfDivisor = absDivisor >> 1;
+        UInt128 absRemainder = UnsignedAbs(remainder);
+        UInt128 absDivisor = UnsignedAbs(divisor);
+        UInt128 halfDivisor = absDivisor >> 1;
 
         bool roundAway = absRemainder > halfDivisor
             || (absRemainder == halfDivisor
-                && (absDivisor & Int128.One) == Int128.Zero
+                && (absDivisor & UInt128.One) == UInt128.Zero
                 && (rounding == DecimalRounding.HalfUp || (quotient & Int128.One) != Int128.Zero));
 
         if (!roundAway) return quotient;
@@ -194,13 +219,13 @@ public static class ScaleHelper
         Int256 remainder = dividend % divisor;
         if (Int256.IsZero(remainder)) return quotient;
 
-        Int256 absRemainder = Int256.Abs(remainder);
-        Int256 absDivisor = Int256.Abs(divisor);
-        Int256 halfDivisor = absDivisor >> 1;
+        UInt256 absRemainder = UnsignedAbs(remainder);
+        UInt256 absDivisor = UnsignedAbs(divisor);
+        UInt256 halfDivisor = absDivisor >> 1;
 
         bool roundAway = absRemainder > halfDivisor
             || (absRemainder == halfDivisor
-                && (absDivisor & Int256.One) == Int256.Zero
+                && (absDivisor & UInt256.One) == UInt256.Zero
                 && (rounding == DecimalRounding.HalfUp || (quotient & Int256.One) != Int256.Zero));
 
         if (!roundAway) return quotient;
