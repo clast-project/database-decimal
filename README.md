@@ -51,6 +51,48 @@ lineage — callers implementing SQL semantics should pass `HalfUp` explicitly.
 The mode is loop-invariant in the span kernels: it is read once per call, not
 per element, and the batch paths stay allocation-free.
 
+## Overflow
+
+A result must fit the result type's *precision*, which is a stricter bound than
+the mantissa width: `NUMERIC(38,0)` stops at `10^38 - 1`, while a 128-bit
+mantissa reaches about `1.7 × 10^38`. Checked arithmetic catches the width; the
+kernels check the precision, and both throw `OverflowException`.
+
+```csharp
+var t = DecimalType.Numeric(38, 0);
+var max38 = DecimalText.ParseDecimal128("99999999999999999999999999999999999999".AsSpan(), t);
+var one = DecimalText.ParseDecimal128("1".AsSpan(), t);
+
+AddKernel.Add(max38, t, one, t, t);   // throws: 39 digits does not fit NUMERIC(38,0)
+```
+
+Engines that null overflowing rows rather than failing the query — Spark outside
+ANSI mode, for one — treat overflow as routine, so an exception per batch would
+be both costly and wrong. Pass `DecimalOverflow.Ignore` and scan the output:
+
+```csharp
+var t = DecimalType.Numeric(9, 0);
+int[] left = { 1, 999_999_999 };
+int[] right = { 1, 1 };
+int[] result = new int[2];
+
+SpanAddKernel.Add(left, t, right, t, result, t,
+                  DecimalRounding.HalfEven, DecimalOverflow.Ignore);
+
+ulong[] mask = new ulong[DecimalRange.MaskWordCount(result.Length)];
+int overflowed = DecimalRange.WriteOutOfRangeMask(result, t, mask);
+// overflowed == 1, and bit 1 of mask[0] flags result[1], which reached 10 digits
+```
+
+`DecimalRange` also offers `IsInRange`, `Validate` (throws), and
+`IndexOfOutOfRange` (first offender, or -1). `Ignore` relaxes only the declared
+precision check — the mantissa width is always checked, so a result that
+overflows `Int128` still throws.
+
+In the span kernels the check is a separate pass over the finished output, not a
+per-element branch, so the arithmetic loop stays branch-free and vectorized and
+the output is fully written even when it throws.
+
 ## Example
 
 ```csharp

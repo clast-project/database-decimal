@@ -20,26 +20,28 @@ public static class MultiplyKernel
     /// then rescale to the result scale if needed.
     /// </summary>
     public static Decimal64 Multiply(Decimal32 left, DecimalType leftType, Decimal32 right, DecimalType rightType, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         long product = (long)left.Mantissa * right.Mantissa;
         int rawScale = leftType.Scale + rightType.Scale;
         if (rawScale != resultType.Scale)
             product = ScaleHelper.Rescale64(product, rawScale, resultType.Scale, rounding);
-        return new Decimal64(product);
+        return new Decimal64(DecimalRange.Enforce(product, resultType, overflow));
     }
 
     /// <summary>
     /// Multiply two 64-bit values, widening to 128-bit.
     /// </summary>
     public static Decimal128 Multiply(Decimal64 left, DecimalType leftType, Decimal64 right, DecimalType rightType, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         Int128 product = (Int128)left.Mantissa * right.Mantissa;
         int rawScale = leftType.Scale + rightType.Scale;
         if (rawScale != resultType.Scale)
             product = ScaleHelper.Rescale128(product, rawScale, resultType.Scale, rounding);
-        return new Decimal128(product);
+        return new Decimal128(DecimalRange.Enforce(product, resultType, overflow));
     }
 
     /// <summary>
@@ -55,14 +57,15 @@ public static class MultiplyKernel
     /// </remarks>
     /// <exception cref="OverflowException">The rescaled product does not fit in 128 bits.</exception>
     public static Decimal128 Multiply(Decimal128 left, DecimalType leftType, Decimal128 right, DecimalType rightType, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         int rawScale = leftType.Scale + rightType.Scale;
         if (rawScale == resultType.Scale)
-            return new Decimal128(checked(left.Mantissa * right.Mantissa));
+            return new Decimal128(DecimalRange.Enforce(checked(left.Mantissa * right.Mantissa), resultType, overflow));
 
-        return new Decimal128(MultiplyRescale128(
-            left.Mantissa, right.Mantissa, rawScale, resultType.Scale, rounding));
+        return new Decimal128(DecimalRange.Enforce(MultiplyRescale128(
+            left.Mantissa, right.Mantissa, rawScale, resultType.Scale, rounding), resultType, overflow));
     }
 
     /// <summary>
@@ -91,13 +94,14 @@ public static class MultiplyKernel
     /// Multiply two 128-bit values, widening to 256-bit via Int256.BigMul.
     /// </summary>
     public static Decimal256 MultiplyWiden(Decimal128 left, DecimalType leftType, Decimal128 right, DecimalType rightType, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         Int256 product = Int256.BigMul(left.Mantissa, right.Mantissa);
         int rawScale = leftType.Scale + rightType.Scale;
         if (rawScale != resultType.Scale)
             product = ScaleHelper.Rescale256(product, rawScale, resultType.Scale, rounding);
-        return new Decimal256(product);
+        return new Decimal256(DecimalRange.Enforce(product, resultType, overflow));
     }
 
     /// <summary>
@@ -114,7 +118,8 @@ public static class MultiplyKernel
     /// exact product is required.
     /// </remarks>
     public static Decimal256 Multiply(Decimal256 left, DecimalType leftType, Decimal256 right, DecimalType rightType, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         int rawScale = leftType.Scale + rightType.Scale;
         int scaleReduction = rawScale - resultType.Scale;
@@ -124,7 +129,7 @@ public static class MultiplyKernel
             Int256 product = left.Mantissa * right.Mantissa;
             if (scaleReduction < 0)
                 product = ScaleHelper.Rescale256(product, rawScale, resultType.Scale, rounding);
-            return new Decimal256(product);
+            return new Decimal256(DecimalRange.Enforce(product, resultType, overflow));
         }
 
         SplitScaleReduction(scaleReduction, leftType.Scale, rightType.Scale,
@@ -132,7 +137,7 @@ public static class MultiplyKernel
 
         Int256 l = ScaleHelper.Rescale256(left.Mantissa, leftType.Scale, leftType.Scale - leftReduction, rounding);
         Int256 r = ScaleHelper.Rescale256(right.Mantissa, rightType.Scale, rightType.Scale - rightReduction, rounding);
-        return new Decimal256(l * r);
+        return new Decimal256(DecimalRange.Enforce(l * r, resultType, overflow));
     }
 
     /// <summary>

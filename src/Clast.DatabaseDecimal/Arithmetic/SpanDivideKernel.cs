@@ -23,7 +23,8 @@ public static class SpanDivideKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -35,6 +36,9 @@ public static class SpanDivideKernel
             long scaledDividend = checked((long)left[i] * prescaleFactor);
             result[i] = ScaleHelper.DivideRound(scaledDividend, right[i], rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     /// <summary>64÷64 → 128 bit. Prescales dividend to 128-bit before dividing.</summary>
@@ -42,7 +46,8 @@ public static class SpanDivideKernel
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -54,6 +59,9 @@ public static class SpanDivideKernel
             Int128 scaledDividend = checked((Int128)left[i] * prescaleFactor);
             result[i] = ScaleHelper.DivideRound(scaledDividend, (Int128)right[i], rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     /// <summary>128÷128 → 256 bit. Prescales dividend to 256-bit before dividing.</summary>
@@ -61,7 +69,8 @@ public static class SpanDivideKernel
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -73,6 +82,9 @@ public static class SpanDivideKernel
             Int256 scaledDividend = checked((Int256)left[i] * prescaleFactor);
             result[i] = ScaleHelper.DivideRound(scaledDividend, (Int256)right[i], rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -84,7 +96,8 @@ public static class SpanDivideKernel
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -96,6 +109,9 @@ public static class SpanDivideKernel
             Int128 scaledDividend = checked(left[i] * prescaleFactor);
             result[i] = ScaleHelper.DivideRound(scaledDividend, right[i], rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     /// <summary>256÷256 → 256 bit. Prescales within 256-bit.</summary>
@@ -103,7 +119,8 @@ public static class SpanDivideKernel
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -115,6 +132,9 @@ public static class SpanDivideKernel
             Int256 scaledDividend = checked(left[i] * prescaleFactor);
             result[i] = ScaleHelper.DivideRound(scaledDividend, right[i], rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -125,7 +145,8 @@ public static class SpanDivideKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         int right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -138,13 +159,17 @@ public static class SpanDivideKernel
             long scaledDividend = checked((long)left[i] * prescaleFactor);
             result[i] = ScaleHelper.DivideRound(scaledDividend, wideRight, rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Divide(
         ReadOnlySpan<long> left, DecimalType leftType,
         long right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -157,13 +182,17 @@ public static class SpanDivideKernel
             Int128 scaledDividend = checked((Int128)left[i] * prescaleFactor);
             result[i] = ScaleHelper.DivideRound(scaledDividend, wideRight, rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Divide(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -175,13 +204,17 @@ public static class SpanDivideKernel
             Int128 scaledDividend = checked(left[i] * prescaleFactor);
             result[i] = ScaleHelper.DivideRound(scaledDividend, right, rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Divide(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         Int256 right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -193,6 +226,9 @@ public static class SpanDivideKernel
             Int256 scaledDividend = checked(left[i] * prescaleFactor);
             result[i] = ScaleHelper.DivideRound(scaledDividend, right, rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -203,7 +239,8 @@ public static class SpanDivideKernel
         int left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(right.Length, result.Length);
 
@@ -212,13 +249,17 @@ public static class SpanDivideKernel
 
         for (int i = 0; i < right.Length; i++)
             result[i] = ScaleHelper.DivideRound(scaledLeft, right[i], rounding);
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
     public static void Divide(
         long left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(right.Length, result.Length);
 
@@ -227,13 +268,17 @@ public static class SpanDivideKernel
 
         for (int i = 0; i < right.Length; i++)
             result[i] = ScaleHelper.DivideRound(scaledLeft, (Int128)right[i], rounding);
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
     public static void Divide(
         Int128 left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(right.Length, result.Length);
 
@@ -242,13 +287,17 @@ public static class SpanDivideKernel
 
         for (int i = 0; i < right.Length; i++)
             result[i] = ScaleHelper.DivideRound(scaledLeft, right[i], rounding);
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
     public static void Divide(
         Int256 left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(right.Length, result.Length);
 
@@ -257,6 +306,9 @@ public static class SpanDivideKernel
 
         for (int i = 0; i < right.Length; i++)
             result[i] = ScaleHelper.DivideRound(scaledLeft, right[i], rounding);
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
     // ================================================================

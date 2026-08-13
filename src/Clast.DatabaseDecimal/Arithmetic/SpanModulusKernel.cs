@@ -21,7 +21,8 @@ public static class SpanModulusKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
         Span<int> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -39,13 +40,17 @@ public static class SpanModulusKernel
                 result[i] = ScaleHelper.RescaleByDelta32(left[i], ld, rounding)
                     % ScaleHelper.RescaleByDelta32(right[i], rd, rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Modulus(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -63,13 +68,17 @@ public static class SpanModulusKernel
                 result[i] = ScaleHelper.RescaleByDelta64(left[i], ld, rounding)
                     % ScaleHelper.RescaleByDelta64(right[i], rd, rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Modulus(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -87,13 +96,17 @@ public static class SpanModulusKernel
                 result[i] = ScaleHelper.RescaleByDelta128(left[i], ld, rounding)
                     % ScaleHelper.RescaleByDelta128(right[i], rd, rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Modulus(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -111,6 +124,9 @@ public static class SpanModulusKernel
                 result[i] = ScaleHelper.RescaleByDelta256(left[i], ld, rounding)
                     % ScaleHelper.RescaleByDelta256(right[i], rd, rounding);
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -121,7 +137,8 @@ public static class SpanModulusKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -131,13 +148,17 @@ public static class SpanModulusKernel
         for (int i = 0; i < left.Length; i++)
             result[i] = ScaleHelper.WidenByDelta32To64(left[i], ld, rounding)
                 % ScaleHelper.WidenByDelta32To64(right[i], rd, rounding);
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void ModulusWiden(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -147,13 +168,17 @@ public static class SpanModulusKernel
         for (int i = 0; i < left.Length; i++)
             result[i] = ScaleHelper.WidenByDelta64To128(left[i], ld, rounding)
                 % ScaleHelper.WidenByDelta64To128(right[i], rd, rounding);
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void ModulusWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, right.Length, result.Length);
 
@@ -163,6 +188,9 @@ public static class SpanModulusKernel
         for (int i = 0; i < left.Length; i++)
             result[i] = ScaleHelper.WidenByDelta128To256(left[i], ld, rounding)
                 % ScaleHelper.WidenByDelta128To256(right[i], rd, rounding);
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
@@ -173,7 +201,8 @@ public static class SpanModulusKernel
         ReadOnlySpan<int> left, DecimalType leftType,
         int right, DecimalType rightType,
         Span<int> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -190,13 +219,17 @@ public static class SpanModulusKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = ScaleHelper.RescaleByDelta32(left[i], ld, rounding) % rescaledRight;
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Modulus(
         ReadOnlySpan<long> left, DecimalType leftType,
         long right, DecimalType rightType,
         Span<long> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -213,13 +246,17 @@ public static class SpanModulusKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = ScaleHelper.RescaleByDelta64(left[i], ld, rounding) % rescaledRight;
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Modulus(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,
         Span<Int128> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -236,13 +273,17 @@ public static class SpanModulusKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = ScaleHelper.RescaleByDelta128(left[i], ld, rounding) % rescaledRight;
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     public static void Modulus(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         Int256 right, DecimalType rightType,
         Span<Int256> result, DecimalType resultType,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
     {
         ValidateLengths(left.Length, result.Length);
 
@@ -259,6 +300,9 @@ public static class SpanModulusKernel
             for (int i = 0; i < left.Length; i++)
                 result[i] = ScaleHelper.RescaleByDelta256(left[i], ld, rounding) % rescaledRight;
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
     // ================================================================
