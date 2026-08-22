@@ -14,6 +14,15 @@ namespace Clast.DatabaseDecimal.Arithmetic;
 /// are pre-computed once before the loop.
 /// The result span may safely overlap with either input span.
 /// </summary>
+/// <remarks>
+/// The overlap guarantee covers the same-width overloads, where an element is
+/// written only after both operands at that index have been read. It does not
+/// extend to the widening overloads: their result element is twice the width of
+/// their inputs, so an in-place widening operation has nowhere to put the
+/// second half. Reaching that case at all takes a deliberate
+/// <see cref="System.Runtime.InteropServices.MemoryMarshal"/> reinterpretation
+/// of one buffer as both element types, since the spans are differently typed.
+/// </remarks>
 public static class SpanAddKernel
 {
     // ================================================================
