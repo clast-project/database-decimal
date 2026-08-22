@@ -199,7 +199,7 @@ public static class SpanDivideKernel
     {
         ValidateLengths(left.Length, right.Length, result.Length);
         ReadOnlySpan<ulong> valid = MaskWords.PrepareIn(left.Length, validity, nameof(validity));
-        Span<ulong> mask = MaskWords.PrepareOut(left.Length, outOfRangeMask, nameof(outOfRangeMask));
+        Span<ulong> mask = MaskWords.PrepareOutForFullWrite(left.Length, outOfRangeMask, nameof(outOfRangeMask));
         DecimalRange.GetBounds(resultType, out long lower, out long upper);
 
         int prescaleAmount = resultType.Scale - leftType.Scale + rightType.Scale;
@@ -236,7 +236,7 @@ public static class SpanDivideKernel
     {
         ValidateLengths(left.Length, right.Length, result.Length);
         ReadOnlySpan<ulong> valid = MaskWords.PrepareIn(left.Length, validity, nameof(validity));
-        Span<ulong> mask = MaskWords.PrepareOut(left.Length, outOfRangeMask, nameof(outOfRangeMask));
+        Span<ulong> mask = MaskWords.PrepareOutForFullWrite(left.Length, outOfRangeMask, nameof(outOfRangeMask));
         DecimalRange.GetBounds(resultType, out Int128 lower, out Int128 upper);
 
         int prescaleAmount = resultType.Scale - leftType.Scale + rightType.Scale;
@@ -273,7 +273,7 @@ public static class SpanDivideKernel
     {
         ValidateLengths(left.Length, right.Length, result.Length);
         ReadOnlySpan<ulong> valid = MaskWords.PrepareIn(left.Length, validity, nameof(validity));
-        Span<ulong> mask = MaskWords.PrepareOut(left.Length, outOfRangeMask, nameof(outOfRangeMask));
+        Span<ulong> mask = MaskWords.PrepareOutForFullWrite(left.Length, outOfRangeMask, nameof(outOfRangeMask));
         DecimalRange.GetBounds(resultType, out Int256 lower, out Int256 upper);
 
         int prescaleAmount = resultType.Scale - leftType.Scale + rightType.Scale;
@@ -310,7 +310,7 @@ public static class SpanDivideKernel
     {
         ValidateLengths(left.Length, right.Length, result.Length);
         ReadOnlySpan<ulong> valid = MaskWords.PrepareIn(left.Length, validity, nameof(validity));
-        Span<ulong> mask = MaskWords.PrepareOut(left.Length, outOfRangeMask, nameof(outOfRangeMask));
+        Span<ulong> mask = MaskWords.PrepareOutForFullWrite(left.Length, outOfRangeMask, nameof(outOfRangeMask));
         DecimalRange.GetBounds(resultType, out Int128 lower, out Int128 upper);
 
         int prescaleAmount = resultType.Scale - leftType.Scale + rightType.Scale;
@@ -347,7 +347,7 @@ public static class SpanDivideKernel
     {
         ValidateLengths(left.Length, right.Length, result.Length);
         ReadOnlySpan<ulong> valid = MaskWords.PrepareIn(left.Length, validity, nameof(validity));
-        Span<ulong> mask = MaskWords.PrepareOut(left.Length, outOfRangeMask, nameof(outOfRangeMask));
+        Span<ulong> mask = MaskWords.PrepareOutForFullWrite(left.Length, outOfRangeMask, nameof(outOfRangeMask));
         DecimalRange.GetBounds(resultType, out Int256 lower, out Int256 upper);
 
         int prescaleAmount = resultType.Scale - leftType.Scale + rightType.Scale;

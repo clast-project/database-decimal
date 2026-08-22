@@ -20,9 +20,15 @@ internal static class MaskWords
 
     /// <summary>
     /// Checks an outbound mask is long enough, clears the words covering the
-    /// span, and returns just those words. Clearing up front is what lets the
-    /// kernels write only the bits they set.
+    /// span, and returns just those words. Clearing up front is what lets a
+    /// kernel write only the bits it sets and leave the rest alone.
     /// </summary>
+    /// <remarks>
+    /// For loops that set bits one at a time — the element-at-a-time paths,
+    /// where a row's bit is reached only if that row is out of range. A loop
+    /// that instead composes a whole word and assigns it wants
+    /// <see cref="PrepareOutForFullWrite"/>, which skips the clear.
+    /// </remarks>
     internal static Span<ulong> PrepareOut(int length, Span<ulong> mask, string paramName)
     {
         int words = WordCount(length);
@@ -33,6 +39,29 @@ internal static class MaskWords
         Span<ulong> used = mask.Slice(0, words);
         used.Clear();
         return used;
+    }
+
+    /// <summary>
+    /// Checks an outbound mask is long enough and returns the words covering
+    /// the span without clearing them.
+    /// </summary>
+    /// <remarks>
+    /// Only for a caller that assigns <em>every</em> returned word, which the
+    /// word-at-a-time loops in the divide and modulus kernels do: they build a
+    /// word's worth of flags and store it whether or not any bit is set, so
+    /// clearing first would write the buffer twice and, worse, suggest to a
+    /// reader that the clear is load-bearing. A caller that only sets bits it
+    /// finds must use <see cref="PrepareOut"/> instead, or stale bits from a
+    /// reused buffer will be reported as out-of-range rows.
+    /// </remarks>
+    internal static Span<ulong> PrepareOutForFullWrite(int length, Span<ulong> mask, string paramName)
+    {
+        int words = WordCount(length);
+        if (mask.Length < words)
+            throw new ArgumentException(
+                $"Mask must be at least {words} words for {length} values.", paramName);
+
+        return mask.Slice(0, words);
     }
 
     /// <summary>

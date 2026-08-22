@@ -580,6 +580,77 @@ public class NullableColumnarTests
     }
 
     [Fact]
+    public void Validity_OverwritesADirtyMask_AcrossTheOverloadShapes()
+    {
+        // The validity overloads assign every mask word rather than clearing the
+        // buffer and setting bits into it, so a caller reusing a dirty buffer
+        // must still get a clean answer. Every row here is null, which is the
+        // case that breaks if a loop ever skips words with nothing to report.
+        var t32 = DecimalType.Numeric(9, 0);
+        var t64 = DecimalType.Numeric(18, 0);
+        var t128 = DecimalType.Numeric(38, 0);
+        ulong[] allNull = { 0UL };
+
+        int[] l32 = { 1, 84, 1, 84 }, r32 = { 1, 4, 1, 4 };
+        long[] l64 = { 1, 84, 1, 84 }, r64 = { 1, 4, 1, 4 };
+        Int128[] l128 = { 1, 84, 1, 84 }, r128 = { 1, 4, 1, 4 };
+        long[] o64 = new long[4];
+        Int128[] o128 = new Int128[4];
+        Int256[] o256 = new Int256[4];
+        ulong[] mask = { ulong.MaxValue };
+
+        Assert.Equal(0, SpanDivideKernel.Divide(l32, t32, r32, t32, o64, t64, allNull, mask));
+        Assert.Equal(0UL, mask[0]);
+
+        mask[0] = ulong.MaxValue;
+        Assert.Equal(0, SpanDivideKernel.Divide(l64, t64, r64, t64, o128, t128, allNull, mask));
+        Assert.Equal(0UL, mask[0]);
+
+        mask[0] = ulong.MaxValue;
+        Assert.Equal(0, SpanDivideKernel.DivideWiden(l128, t128, r128, t128, o256, t128, allNull, mask));
+        Assert.Equal(0UL, mask[0]);
+
+        mask[0] = ulong.MaxValue;
+        Assert.Equal(0, SpanModulusKernel.Modulus(l128, t128, r128, t128, o128, t128, allNull, mask));
+        Assert.Equal(0UL, mask[0]);
+
+        mask[0] = ulong.MaxValue;
+        Assert.Equal(0, SpanModulusKernel.ModulusWiden(l64, t64, r64, t64, o128, t128, allNull, mask));
+        Assert.Equal(0UL, mask[0]);
+    }
+
+    [Fact]
+    public void Validity_OverwritesADirtyMask_InEveryWord()
+    {
+        // Same guard over a mask spanning several words, with the middle word
+        // entirely null: a loop that skipped it would leave that word's stale
+        // ones behind and report 64 phantom out-of-range rows.
+        var t = DecimalType.Numeric(38, 0);
+        const int length = 200;
+        Int128[] left = new Int128[length], right = new Int128[length];
+        for (int i = 0; i < length; i++) { left[i] = 84; right[i] = 4; }
+        Int128[] result = new Int128[length];
+
+        ulong[] validity = NewMask(length);
+        validity[0] = ulong.MaxValue;                 // rows 0-63 valid
+        validity[1] = 0UL;                            // rows 64-127 all null
+        validity[2] = ulong.MaxValue;                 // rows 128-191 valid
+        validity[3] = 0b1111UL;                       // rows 192-195 valid
+        Assert.True(validity.Length >= 4);
+
+        ulong[] mask = NewMask(length);
+        for (int w = 0; w < mask.Length; w++) mask[w] = ulong.MaxValue;
+
+        int count = SpanDivideKernel.Divide(left, t, right, t, result, t, validity, mask);
+
+        Assert.Equal(0, count);
+        for (int w = 0; w < mask.Length; w++) Assert.Equal(0UL, mask[w]);
+        Assert.Equal((Int128)21, result[0]);
+        Assert.Equal(Int128.Zero, result[100]);       // inside the all-null word
+        Assert.Equal((Int128)21, result[128]);
+    }
+
+    [Fact]
     public void Divide_Validity_RejectsAShortValidityMask()
     {
         var type = DecimalType.Numeric(38, 0);
