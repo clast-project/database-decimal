@@ -14,6 +14,15 @@ namespace Clast.DatabaseDecimal.Arithmetic;
 /// are pre-computed once before the loop.
 /// The result span may safely overlap with either input span.
 /// </summary>
+/// <remarks>
+/// The overlap guarantee covers the same-width overloads, where an element is
+/// written only after both operands at that index have been read. It does not
+/// extend to the widening overloads: their result element is twice the width of
+/// their inputs, so an in-place widening operation has nowhere to put the
+/// second half. Reaching that case at all takes a deliberate
+/// <see cref="System.Runtime.InteropServices.MemoryMarshal"/> reinterpretation
+/// of one buffer as both element types, since the spans are differently typed.
+/// </remarks>
 public static class SpanAddKernel
 {
     // ================================================================
@@ -441,6 +450,80 @@ public static class SpanAddKernel
                 result[i] = checked(ScaleHelper.RescaleByDelta256(left[i], ld, rounding)
                     - ScaleHelper.RescaleByDelta256(right[i], rd, rounding));
         }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
+    }
+
+    // ================================================================
+    // Subtract — column - column, widening
+    // ================================================================
+
+    public static void SubtractWiden(
+        ReadOnlySpan<int> left, DecimalType leftType,
+        ReadOnlySpan<int> right, DecimalType rightType,
+        Span<long> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
+    {
+        ValidateLengths(left.Length, right.Length, result.Length);
+
+        int ld = resultType.Scale - leftType.Scale;
+        int rd = resultType.Scale - rightType.Scale;
+
+        if (ld == 0 && rd == 0)
+        {
+            DecimalRange.GetBounds(resultType, out long lower, out long upper);
+            if (SubtractWidenSameScale32To64(left, right, result, lower, upper) && overflow == DecimalOverflow.Throw)
+                DecimalRange.ThrowOutOfRange(resultType);
+            return;
+        }
+        else
+        {
+            for (int i = 0; i < left.Length; i++)
+                result[i] = checked(ScaleHelper.WidenByDelta32To64(left[i], ld, rounding)
+                    - ScaleHelper.WidenByDelta32To64(right[i], rd, rounding));
+        }
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
+    }
+
+    public static void SubtractWiden(
+        ReadOnlySpan<long> left, DecimalType leftType,
+        ReadOnlySpan<long> right, DecimalType rightType,
+        Span<Int128> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
+    {
+        ValidateLengths(left.Length, right.Length, result.Length);
+
+        int ld = resultType.Scale - leftType.Scale;
+        int rd = resultType.Scale - rightType.Scale;
+
+        for (int i = 0; i < left.Length; i++)
+            result[i] = checked(ScaleHelper.WidenByDelta64To128(left[i], ld, rounding)
+                - ScaleHelper.WidenByDelta64To128(right[i], rd, rounding));
+
+        if (overflow == DecimalOverflow.Throw)
+            DecimalRange.Validate(result.Slice(0, left.Length), resultType);
+    }
+
+    public static void SubtractWiden(
+        ReadOnlySpan<Int128> left, DecimalType leftType,
+        ReadOnlySpan<Int128> right, DecimalType rightType,
+        Span<Int256> result, DecimalType resultType,
+        DecimalRounding rounding = DecimalRounding.HalfEven,
+        DecimalOverflow overflow = DecimalOverflow.Throw)
+    {
+        ValidateLengths(left.Length, right.Length, result.Length);
+
+        int ld = resultType.Scale - leftType.Scale;
+        int rd = resultType.Scale - rightType.Scale;
+
+        for (int i = 0; i < left.Length; i++)
+            result[i] = checked(ScaleHelper.WidenByDelta128To256(left[i], ld, rounding)
+                - ScaleHelper.WidenByDelta128To256(right[i], rd, rounding));
 
         if (overflow == DecimalOverflow.Throw)
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
@@ -908,6 +991,51 @@ public static class SpanAddKernel
         for (; i < left.Length; i++)
         {
             var value = (long)left[i] + right[i];
+            result[i] = value;
+            outOfRangeSeen |= value < lower || value > upper;
+        }
+
+        return outOfRangeSeen;
+    }
+
+    private static bool SubtractWidenSameScale32To64(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<long> result, long lower, long upper)
+    {
+        int i = 0;
+        bool outOfRangeSeen = false;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
+        {
+            ReadOnlySpan<Vector<int>> lv = MemoryMarshal.Cast<int, Vector<int>>(left);
+            ReadOnlySpan<Vector<int>> rv = MemoryMarshal.Cast<int, Vector<int>>(right);
+            Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
+            int chunks = lv.Length;
+            // As with the widening add, the difference of two widened 32-bit
+            // values cannot overflow 64 bits, so there is no overflow
+            // accumulator here — only the declared precision has to be
+            // enforced, on both halves of each widened pair.
+            Vector<long> outOfRange = Vector<long>.Zero;
+            Vector<long> loVec = new Vector<long>(lower);
+            Vector<long> hiVec = new Vector<long>(upper);
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<int> a = lv[k];
+                Vector<int> b = rv[k];
+                Vector.Widen(a, out Vector<long> aLo, out Vector<long> aHi);
+                Vector.Widen(b, out Vector<long> bLo, out Vector<long> bHi);
+                Vector<long> low = aLo - bLo;
+                Vector<long> high = aHi - bHi;
+                outOfRange |= Vector.LessThan(low, loVec) | Vector.GreaterThan(low, hiVec);
+                outOfRange |= Vector.LessThan(high, loVec) | Vector.GreaterThan(high, hiVec);
+                ov[k * 2] = low;
+                ov[k * 2 + 1] = high;
+            }
+            outOfRangeSeen |= outOfRange != Vector<long>.Zero;
+            i = chunks * Vector<int>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+        {
+            var value = (long)left[i] - right[i];
             result[i] = value;
             outOfRangeSeen |= value < lower || value > upper;
         }

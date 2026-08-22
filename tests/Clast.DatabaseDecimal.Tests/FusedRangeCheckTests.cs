@@ -140,6 +140,39 @@ public class FusedRangeCheckTests
     [Theory]
     [InlineData(InVectorBody)]
     [InlineData(InScalarTail)]
+    public void SubtractWiden32To64_PastPrecision_Throws(int index)
+    {
+        // Widening cannot overflow the width, so only the declared precision
+        // can reject this: NUMERIC(9,0) in a 64-bit result.
+        int[] left = new int[Length];
+        int[] right = new int[Length];
+        left[index] = Max9;
+        right[index] = -1;
+
+        Assert.Throws<OverflowException>(() =>
+            SpanAddKernel.SubtractWiden(left, T9, right, T9, new long[Length], T9));
+    }
+
+    [Theory]
+    [InlineData(InVectorBody)]
+    [InlineData(InScalarTail)]
+    public void SubtractWiden32To64_Ignore_WritesEverythingAndDoesNotThrow(int index)
+    {
+        int[] left = new int[Length];
+        int[] right = new int[Length];
+        left[index] = Max9;
+        right[index] = -1;
+        long[] result = new long[Length];
+
+        SpanAddKernel.SubtractWiden(left, T9, right, T9, result, T9,
+            DecimalRounding.HalfEven, DecimalOverflow.Ignore);
+
+        Assert.Equal(Max9 + 1L, result[index]);
+    }
+
+    [Theory]
+    [InlineData(InVectorBody)]
+    [InlineData(InScalarTail)]
     public void Subtract64_BroadcastColumnScalar_PastPrecision_Throws(int index)
     {
         long[] left = new long[Length];
