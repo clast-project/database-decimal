@@ -1,6 +1,8 @@
 // Copyright (c) clast-project. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
+using System.Runtime.CompilerServices;
+
 namespace Clast.DatabaseDecimal;
 
 /// <summary>
@@ -9,7 +11,12 @@ namespace Clast.DatabaseDecimal;
 /// Scale is the number of digits after the decimal point (0..precision).
 /// The backing integer width is derived from the precision.
 /// </summary>
-public readonly record struct DecimalType(byte Precision, byte Scale)
+/// <remarks>
+/// Every constructed value is validated, so <see cref="IntegerDigits"/> is never
+/// negative. The one unvalidated value is <c>default(DecimalType)</c>, which a
+/// struct always permits: it has a precision of 0 and behaves as NUMERIC(0,0).
+/// </remarks>
+public readonly record struct DecimalType
 {
     /// <summary>Max digits for a 32-bit mantissa: floor(log10(2^31)) = 9.</summary>
     public const int MaxPrecision32 = 9;
@@ -22,6 +29,32 @@ public readonly record struct DecimalType(byte Precision, byte Scale)
 
     /// <summary>Max digits for a 256-bit mantissa: floor(log10(2^255)) = 76.</summary>
     public const int MaxPrecision256 = 76;
+
+    /// <summary>
+    /// Creates a DecimalType, validating precision and scale.
+    /// </summary>
+    /// <param name="precision">Total number of significant digits, 1..76.</param>
+    /// <param name="scale">Digits after the decimal point, 0..<paramref name="precision"/>.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The precision is outside 1..76, or the scale exceeds the precision.
+    /// </exception>
+    public DecimalType(byte precision, byte scale)
+    {
+        if (precision < 1 || precision > MaxPrecision256)
+            ThrowPrecisionOutOfRange(precision);
+
+        if (scale > precision)
+            ThrowScaleOutOfRange(precision, scale);
+
+        Precision = precision;
+        Scale = scale;
+    }
+
+    /// <summary>The total number of significant digits, 1..76.</summary>
+    public byte Precision { get; }
+
+    /// <summary>The number of digits after the decimal point, 0..<see cref="Precision"/>.</summary>
+    public byte Scale { get; }
 
     /// <summary>
     /// The backing integer width tier, derived from the precision.
@@ -40,20 +73,40 @@ public readonly record struct DecimalType(byte Precision, byte Scale)
     public int IntegerDigits => Precision - Scale;
 
     /// <summary>
-    /// Creates a DecimalType with validation.
+    /// Creates a DecimalType with validation. Equivalent to the constructor, but
+    /// takes <see cref="int"/> arguments so out-of-range values are rejected rather
+    /// than silently truncated by the conversion to <see cref="byte"/>.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The precision is outside 1..76, or the scale is negative or exceeds the precision.
+    /// </exception>
     public static DecimalType Numeric(int precision, int scale)
     {
         if (precision < 1 || precision > MaxPrecision256)
-            throw new ArgumentOutOfRangeException(nameof(precision),
-                $"Precision must be between 1 and {MaxPrecision256}, got {precision}.");
+            ThrowPrecisionOutOfRange(precision);
 
         if (scale < 0 || scale > precision)
-            throw new ArgumentOutOfRangeException(nameof(scale),
-                $"Scale must be between 0 and precision ({precision}), got {scale}.");
+            ThrowScaleOutOfRange(precision, scale);
 
         return new DecimalType((byte)precision, (byte)scale);
     }
 
+    /// <summary>Splits the type into its precision and scale.</summary>
+    public void Deconstruct(out byte precision, out byte scale)
+    {
+        precision = Precision;
+        scale = Scale;
+    }
+
     public override string ToString() => $"NUMERIC({Precision},{Scale})";
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowPrecisionOutOfRange(int precision) =>
+        throw new ArgumentOutOfRangeException(nameof(precision),
+            $"Precision must be between 1 and {MaxPrecision256}, got {precision}.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowScaleOutOfRange(int precision, int scale) =>
+        throw new ArgumentOutOfRangeException(nameof(scale),
+            $"Scale must be between 0 and precision ({precision}), got {scale}.");
 }

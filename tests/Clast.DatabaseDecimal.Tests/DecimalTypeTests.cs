@@ -75,4 +75,51 @@ public class DecimalTypeTests
         var b = DecimalType.Numeric(5, 3);
         Assert.NotEqual(a, b);
     }
+
+    [Fact]
+    public void Constructor_ScaleExceedsPrecision_Throws()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => new DecimalType(10, 30));
+        Assert.Equal("scale", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_PrecisionZero_Throws()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => new DecimalType(0, 0));
+        Assert.Equal("precision", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_PrecisionAboveMax_Throws()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => new DecimalType(77, 0));
+        Assert.Equal("precision", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_MatchesNumeric()
+    {
+        Assert.Equal(DecimalType.Numeric(18, 4), new DecimalType(18, 4));
+    }
+
+    [Fact]
+    public void Deconstruct_YieldsPrecisionAndScale()
+    {
+        var (precision, scale) = DecimalType.Numeric(18, 4);
+        Assert.Equal(18, precision);
+        Assert.Equal(4, scale);
+    }
+
+    [Fact]
+    public void IntegerDigits_NeverNegative_ForConstructibleTypes()
+    {
+        for (int precision = 1; precision <= DecimalType.MaxPrecision256; precision++)
+        {
+            for (int scale = 0; scale <= precision; scale++)
+                Assert.True(DecimalType.Numeric(precision, scale).IntegerDigits >= 0);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => DecimalType.Numeric(precision, precision + 1));
+        }
+    }
 }
