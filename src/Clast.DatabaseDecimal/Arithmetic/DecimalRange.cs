@@ -87,6 +87,20 @@ public static class DecimalRange
         else { upper = long.MaxValue; lower = long.MinValue; }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void GetBounds(DecimalType type, out Int128 lower, out Int128 upper)
+    {
+        if (TryGetBound(type, out Int128 bound)) { upper = bound - Int128.One; lower = -upper; }
+        else { upper = Int128.MaxValue; lower = Int128.MinValue; }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void GetBounds(DecimalType type, out Int256 lower, out Int256 upper)
+    {
+        if (TryGetBound(type, out Int256 bound)) { upper = bound - Int256.One; lower = -upper; }
+        else { upper = Int256.MaxValue; lower = Int256.MinValue; }
+    }
+
     /// <summary>Reports a result that does not fit the type's precision.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowOutOfRange(DecimalType type) => ThrowOverflow(type);
