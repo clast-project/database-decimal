@@ -23,7 +23,7 @@ namespace Clast.DatabaseDecimal.Tests;
 /// way to cover that code on hardware .NET ships for.
 /// </para>
 /// </remarks>
-public class DecimalBinaryTests
+public partial class DecimalBinaryTests
 {
     private static readonly DecimalByteOrder[] Orders =
         [DecimalByteOrder.LittleEndian, DecimalByteOrder.BigEndian];

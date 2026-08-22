@@ -30,8 +30,94 @@ namespace Clast.DatabaseDecimal.Binary;
 /// </remarks>
 public static class DecimalBinary
 {
+    private const int Int32ByteCount = 4;
+    private const int Int64ByteCount = 8;
     private const int Int128ByteCount = 16;
     private const int Int256ByteCount = 32;
+
+    // ================================================================
+    // Scalar — Int32
+    // ================================================================
+
+    /// <inheritdoc cref="ReadInt128(ReadOnlySpan{byte}, DecimalByteOrder)"/>
+    public static int ReadInt32(ReadOnlySpan<byte> source, DecimalByteOrder order)
+    {
+        if (!TryReadInt32(source, order, out int value))
+            ThrowUnreadable(source.Length, Int32ByteCount);
+
+        return value;
+    }
+
+    /// <inheritdoc cref="TryReadInt128(ReadOnlySpan{byte}, DecimalByteOrder, out Int128)"/>
+    public static bool TryReadInt32(ReadOnlySpan<byte> source, DecimalByteOrder order, out int value)
+    {
+        Span<byte> le = stackalloc byte[Int32ByteCount];
+        if (!TryReadCore(source, order, le))
+        {
+            value = default;
+            return false;
+        }
+
+        value = BinaryPrimitives.ReadInt32LittleEndian(le);
+        return true;
+    }
+
+    /// <inheritdoc cref="WriteInt128(Int128, Span{byte}, DecimalByteOrder)"/>
+    public static void WriteInt32(int value, Span<byte> destination, DecimalByteOrder order)
+    {
+        if (!TryWriteInt32(value, destination, order))
+            ThrowUnwritable(destination.Length);
+    }
+
+    /// <inheritdoc cref="TryWriteInt128(Int128, Span{byte}, DecimalByteOrder)"/>
+    public static bool TryWriteInt32(int value, Span<byte> destination, DecimalByteOrder order)
+    {
+        Span<byte> le = stackalloc byte[Int32ByteCount];
+        BinaryPrimitives.WriteInt32LittleEndian(le, value);
+        return TryWriteCore(le, destination, order, checkFit: true);
+    }
+
+    // ================================================================
+    // Scalar — Int64
+    // ================================================================
+
+    /// <inheritdoc cref="ReadInt128(ReadOnlySpan{byte}, DecimalByteOrder)"/>
+    public static long ReadInt64(ReadOnlySpan<byte> source, DecimalByteOrder order)
+    {
+        if (!TryReadInt64(source, order, out long value))
+            ThrowUnreadable(source.Length, Int64ByteCount);
+
+        return value;
+    }
+
+    /// <inheritdoc cref="TryReadInt128(ReadOnlySpan{byte}, DecimalByteOrder, out Int128)"/>
+    public static bool TryReadInt64(ReadOnlySpan<byte> source, DecimalByteOrder order, out long value)
+    {
+        Span<byte> le = stackalloc byte[Int64ByteCount];
+        if (!TryReadCore(source, order, le))
+        {
+            value = default;
+            return false;
+        }
+
+        value = BinaryPrimitives.ReadInt64LittleEndian(le);
+        return true;
+    }
+
+    /// <inheritdoc cref="WriteInt128(Int128, Span{byte}, DecimalByteOrder)"/>
+    public static void WriteInt64(long value, Span<byte> destination, DecimalByteOrder order)
+    {
+        if (!TryWriteInt64(value, destination, order))
+            ThrowUnwritable(destination.Length);
+    }
+
+    /// <inheritdoc cref="TryWriteInt128(Int128, Span{byte}, DecimalByteOrder)"/>
+    public static bool TryWriteInt64(long value, Span<byte> destination, DecimalByteOrder order)
+    {
+        Span<byte> le = stackalloc byte[Int64ByteCount];
+        BinaryPrimitives.WriteInt64LittleEndian(le, value);
+        return TryWriteCore(le, destination, order, checkFit: true);
+    }
 
     // ================================================================
     // Scalar — Int128
@@ -133,6 +219,172 @@ public static class DecimalBinary
         Span<byte> le = stackalloc byte[Int256ByteCount];
         ToLittleEndian256(value, le);
         return TryWriteCore(le, destination, order, checkFit: true);
+    }
+
+    // ================================================================
+    // Bulk — Int32
+    // ================================================================
+
+    /// <inheritdoc cref="ReadInt128(ReadOnlySpan{byte}, int, DecimalByteOrder, Span{Int128})"/>
+    public static void ReadInt32(ReadOnlySpan<byte> source, int byteWidth, DecimalByteOrder order,
+        Span<int> destination)
+    {
+        ValidateWidth(byteWidth);
+        int count = destination.Length;
+        ValidateSourceLength(source.Length, count, byteWidth);
+        if (count == 0)
+            return;
+
+        if (byteWidth == Int32ByteCount)
+        {
+            // A field of the mantissa's own width always fits, so the column is
+            // a copy or one byte swap per element — no fit check, no scratch.
+            if (CanReinterpret(byteWidth, Int32ByteCount, order))
+            {
+                source.Slice(0, count * Int32ByteCount).CopyTo(MemoryMarshal.AsBytes(destination));
+                return;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                ReadOnlySpan<byte> field = source.Slice(i * Int32ByteCount, Int32ByteCount);
+                destination[i] = order == DecimalByteOrder.LittleEndian
+                    ? BinaryPrimitives.ReadInt32LittleEndian(field)
+                    : BinaryPrimitives.ReadInt32BigEndian(field);
+            }
+
+            return;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (!TryReadInt32(source.Slice(i * byteWidth, byteWidth), order, out int value))
+                ThrowElementUnreadable(i, byteWidth, Int32ByteCount);
+
+            destination[i] = value;
+        }
+    }
+
+    /// <inheritdoc cref="WriteInt128(ReadOnlySpan{Int128}, Span{byte}, int, DecimalByteOrder, DecimalOverflow)"/>
+    public static void WriteInt32(ReadOnlySpan<int> values, Span<byte> destination, int byteWidth,
+        DecimalByteOrder order, DecimalOverflow overflow = DecimalOverflow.Throw)
+    {
+        ValidateWidth(byteWidth);
+        int count = values.Length;
+        ValidateDestinationLength(destination.Length, count, byteWidth);
+        if (count == 0)
+            return;
+
+        if (byteWidth == Int32ByteCount)
+        {
+            if (CanReinterpret(byteWidth, Int32ByteCount, order))
+            {
+                MemoryMarshal.AsBytes(values).CopyTo(destination);
+                return;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                Span<byte> field = destination.Slice(i * Int32ByteCount, Int32ByteCount);
+                if (order == DecimalByteOrder.LittleEndian)
+                    BinaryPrimitives.WriteInt32LittleEndian(field, values[i]);
+                else
+                    BinaryPrimitives.WriteInt32BigEndian(field, values[i]);
+            }
+
+            return;
+        }
+
+        Span<byte> le = stackalloc byte[Int32ByteCount];
+        bool checkFit = overflow == DecimalOverflow.Throw;
+        for (int i = 0; i < count; i++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(le, values[i]);
+            if (!TryWriteCore(le, destination.Slice(i * byteWidth, byteWidth), order, checkFit))
+                ThrowElementUnwritable(i, byteWidth);
+        }
+    }
+
+    // ================================================================
+    // Bulk — Int64
+    // ================================================================
+
+    /// <inheritdoc cref="ReadInt128(ReadOnlySpan{byte}, int, DecimalByteOrder, Span{Int128})"/>
+    public static void ReadInt64(ReadOnlySpan<byte> source, int byteWidth, DecimalByteOrder order,
+        Span<long> destination)
+    {
+        ValidateWidth(byteWidth);
+        int count = destination.Length;
+        ValidateSourceLength(source.Length, count, byteWidth);
+        if (count == 0)
+            return;
+
+        if (byteWidth == Int64ByteCount)
+        {
+            if (CanReinterpret(byteWidth, Int64ByteCount, order))
+            {
+                source.Slice(0, count * Int64ByteCount).CopyTo(MemoryMarshal.AsBytes(destination));
+                return;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                ReadOnlySpan<byte> field = source.Slice(i * Int64ByteCount, Int64ByteCount);
+                destination[i] = order == DecimalByteOrder.LittleEndian
+                    ? BinaryPrimitives.ReadInt64LittleEndian(field)
+                    : BinaryPrimitives.ReadInt64BigEndian(field);
+            }
+
+            return;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (!TryReadInt64(source.Slice(i * byteWidth, byteWidth), order, out long value))
+                ThrowElementUnreadable(i, byteWidth, Int64ByteCount);
+
+            destination[i] = value;
+        }
+    }
+
+    /// <inheritdoc cref="WriteInt128(ReadOnlySpan{Int128}, Span{byte}, int, DecimalByteOrder, DecimalOverflow)"/>
+    public static void WriteInt64(ReadOnlySpan<long> values, Span<byte> destination, int byteWidth,
+        DecimalByteOrder order, DecimalOverflow overflow = DecimalOverflow.Throw)
+    {
+        ValidateWidth(byteWidth);
+        int count = values.Length;
+        ValidateDestinationLength(destination.Length, count, byteWidth);
+        if (count == 0)
+            return;
+
+        if (byteWidth == Int64ByteCount)
+        {
+            if (CanReinterpret(byteWidth, Int64ByteCount, order))
+            {
+                MemoryMarshal.AsBytes(values).CopyTo(destination);
+                return;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                Span<byte> field = destination.Slice(i * Int64ByteCount, Int64ByteCount);
+                if (order == DecimalByteOrder.LittleEndian)
+                    BinaryPrimitives.WriteInt64LittleEndian(field, values[i]);
+                else
+                    BinaryPrimitives.WriteInt64BigEndian(field, values[i]);
+            }
+
+            return;
+        }
+
+        Span<byte> le = stackalloc byte[Int64ByteCount];
+        bool checkFit = overflow == DecimalOverflow.Throw;
+        for (int i = 0; i < count; i++)
+        {
+            BinaryPrimitives.WriteInt64LittleEndian(le, values[i]);
+            if (!TryWriteCore(le, destination.Slice(i * byteWidth, byteWidth), order, checkFit))
+                ThrowElementUnwritable(i, byteWidth);
+        }
     }
 
     // ================================================================
@@ -258,6 +510,61 @@ public static class DecimalBinary
                 ThrowElementUnwritable(i, byteWidth);
         }
     }
+
+    // ================================================================
+    // Bulk — decimal columns
+    // ================================================================
+
+    /// <summary>
+    /// Reads a column of fixed-width fields straight into decimal values.
+    /// </summary>
+    /// <remarks>
+    /// Each <c>Decimal*</c> type is a single-field <c>Sequential</c> struct over
+    /// its mantissa, so this is the mantissa overload with the reinterpret kept
+    /// on this side of the API — which is the whole point of it being here
+    /// rather than at the call site.
+    /// </remarks>
+    public static void ReadDecimal128(ReadOnlySpan<byte> source, int byteWidth, DecimalByteOrder order,
+        Span<Decimal128> destination) =>
+        ReadInt128(source, byteWidth, order, MemoryMarshal.Cast<Decimal128, Int128>(destination));
+
+    /// <summary>
+    /// Writes a column of decimal values as fixed-width fields.
+    /// </summary>
+    /// <inheritdoc cref="ReadDecimal128(ReadOnlySpan{byte}, int, DecimalByteOrder, Span{Decimal128})" path="/remarks"/>
+    public static void WriteDecimal128(ReadOnlySpan<Decimal128> values, Span<byte> destination, int byteWidth,
+        DecimalByteOrder order, DecimalOverflow overflow = DecimalOverflow.Throw) =>
+        WriteInt128(MemoryMarshal.Cast<Decimal128, Int128>(values), destination, byteWidth, order, overflow);
+
+    /// <inheritdoc cref="ReadDecimal128(ReadOnlySpan{byte}, int, DecimalByteOrder, Span{Decimal128})"/>
+    public static void ReadDecimal32(ReadOnlySpan<byte> source, int byteWidth, DecimalByteOrder order,
+        Span<Decimal32> destination) =>
+        ReadInt32(source, byteWidth, order, MemoryMarshal.Cast<Decimal32, int>(destination));
+
+    /// <inheritdoc cref="WriteDecimal128(ReadOnlySpan{Decimal128}, Span{byte}, int, DecimalByteOrder, DecimalOverflow)"/>
+    public static void WriteDecimal32(ReadOnlySpan<Decimal32> values, Span<byte> destination, int byteWidth,
+        DecimalByteOrder order, DecimalOverflow overflow = DecimalOverflow.Throw) =>
+        WriteInt32(MemoryMarshal.Cast<Decimal32, int>(values), destination, byteWidth, order, overflow);
+
+    /// <inheritdoc cref="ReadDecimal128(ReadOnlySpan{byte}, int, DecimalByteOrder, Span{Decimal128})"/>
+    public static void ReadDecimal64(ReadOnlySpan<byte> source, int byteWidth, DecimalByteOrder order,
+        Span<Decimal64> destination) =>
+        ReadInt64(source, byteWidth, order, MemoryMarshal.Cast<Decimal64, long>(destination));
+
+    /// <inheritdoc cref="WriteDecimal128(ReadOnlySpan{Decimal128}, Span{byte}, int, DecimalByteOrder, DecimalOverflow)"/>
+    public static void WriteDecimal64(ReadOnlySpan<Decimal64> values, Span<byte> destination, int byteWidth,
+        DecimalByteOrder order, DecimalOverflow overflow = DecimalOverflow.Throw) =>
+        WriteInt64(MemoryMarshal.Cast<Decimal64, long>(values), destination, byteWidth, order, overflow);
+
+    /// <inheritdoc cref="ReadDecimal128(ReadOnlySpan{byte}, int, DecimalByteOrder, Span{Decimal128})"/>
+    public static void ReadDecimal256(ReadOnlySpan<byte> source, int byteWidth, DecimalByteOrder order,
+        Span<Decimal256> destination) =>
+        ReadInt256(source, byteWidth, order, MemoryMarshal.Cast<Decimal256, Int256>(destination));
+
+    /// <inheritdoc cref="WriteDecimal128(ReadOnlySpan{Decimal128}, Span{byte}, int, DecimalByteOrder, DecimalOverflow)"/>
+    public static void WriteDecimal256(ReadOnlySpan<Decimal256> values, Span<byte> destination, int byteWidth,
+        DecimalByteOrder order, DecimalOverflow overflow = DecimalOverflow.Throw) =>
+        WriteInt256(MemoryMarshal.Cast<Decimal256, Int256>(values), destination, byteWidth, order, overflow);
 
     // ================================================================
     // Field width
