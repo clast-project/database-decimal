@@ -80,6 +80,46 @@ public class ReadmeExampleTests
         Assert.Equal(new[] { 2, 1_000_000_000 }, result);
     }
 
+    /// <summary>The "Overflow" section's folded-mask example.</summary>
+    [Fact]
+    public void Overflow_FoldedMask()
+    {
+        var t = DecimalType.Numeric(9, 0);
+        int[] left = { 1, 999_999_999 };
+        int[] right = { 1, 1 };
+        int[] result = new int[2];
+        ulong[] mask = new ulong[DecimalRange.MaskWordCount(result.Length)];
+
+        int overflowed = SpanAddKernel.Add(left, t, right, t, result, t, mask);
+
+        // same result and same mask as the two-pass version above, in one pass
+        Assert.Equal(1, overflowed);
+        Assert.Equal(0b10UL, mask[0]);
+        Assert.Equal(new[] { 2, 1_000_000_000 }, result);
+    }
+
+    /// <summary>The "Nullable columns" section's divide example.</summary>
+    [Fact]
+    public void NullableColumns_Divide()
+    {
+        var t = DecimalType.Numeric(38, 2);
+        var resultType = DecimalType.Numeric(38, 6);
+        Int128[] left = { 100, 200, 300 };
+        Int128[] right = { 5, 0, 3 };        // element 1 is null, and holds zero
+        Int128[] result = new Int128[3];
+        ulong[] validity = { 0b101 };        // caller's left AND right
+        ulong[] mask = new ulong[DecimalRange.MaskWordCount(result.Length)];
+
+        int overflowed = SpanDivideKernel.Divide(
+            left, t, right, t, result, resultType, validity, mask);
+
+        Assert.Equal(0, overflowed);
+        Assert.Equal(0UL, mask[0]);
+        // The skipped row is left exactly as it was found.
+        Assert.Equal(Int128.Zero, result[1]);
+        Assert.Equal(new[] { (Int128)20_000_000, Int128.Zero, (Int128)100_000_000 }, result);
+    }
+
     /// <summary>The "Example" section.</summary>
     [Fact]
     public void Example()
