@@ -14,7 +14,10 @@ namespace Clast.DatabaseDecimal.Tests;
 /// <remarks>
 /// The folded-mask overloads are held against the plain kernel followed by
 /// <see cref="DecimalRange"/>.<c>WriteOutOfRangeMask</c>, which is the two-pass
-/// shape they replace: same results, same mask, same count.
+/// shape they replace: same results, same mask, same count. The validity-aware
+/// divide and modulus overloads are held against the same dense kernels run over
+/// operands whose null slots have been patched to something harmless, since a
+/// dense pass over a real null slot is exactly what they exist to avoid.
 /// </remarks>
 public class NullableColumnarTests
 {
@@ -48,6 +51,24 @@ public class NullableColumnarTests
     private static ulong[] NewMask(int length) => new ulong[DecimalRange.MaskWordCount(length)];
 
     private static bool Bit(ReadOnlySpan<ulong> mask, int i) => (mask[i >> 6] & (1UL << (i & 63))) != 0;
+
+    /// <summary>A bitmap with roughly one row in three null, plus a fixed pattern at the front.</summary>
+    private static ulong[] BuildValidity(int length, int seed, out int validCount)
+    {
+        var rng = new Random(seed);
+        ulong[] validity = NewMask(length);
+        validCount = 0;
+        for (int i = 0; i < length; i++)
+        {
+            // Row 0 valid and row 1 null in every case, so the small lengths
+            // still cover both branches.
+            bool valid = i == 0 || (i != 1 && rng.Next(3) != 0);
+            if (!valid) continue;
+            validity[i >> 6] |= 1UL << (i & 63);
+            validCount++;
+        }
+        return validity;
+    }
 
     // ================================================================
     // Folded out-of-range mask — add and subtract
@@ -373,5 +394,255 @@ public class NullableColumnarTests
 
         Assert.Throws<OverflowException>(() =>
             SpanAddKernel.Add(left, type, right, type, result, type, mask));
+    }
+
+    // ================================================================
+    // Validity-aware divide and modulus
+    // ================================================================
+
+    [Theory]
+    [MemberData(nameof(Lengths))]
+    public void Divide128_Validity_MatchesDenseOnTheValidRows(int length)
+    {
+        var type = DecimalType.Numeric(38, 2);
+        var resultType = DecimalType.Numeric(38, 6);
+        var rng = new Random(21);
+        ulong[] validity = BuildValidity(length, 22, out int validCount);
+
+        Int128[] left = new Int128[length], right = new Int128[length];
+        for (int i = 0; i < length; i++)
+        {
+            left[i] = RandomInt64(rng);
+            // A zero divisor under every null slot: the value a builder leaves
+            // there, and the one a dense pass would trip over.
+            right[i] = Bit(validity, i) ? RandomInt64(rng, 1, 1_000_000) : Int128.Zero;
+        }
+
+        // Reference: the dense kernel over a divisor whose null slots have been
+        // patched to one, which is the workaround this overload removes.
+        Int128[] patched = new Int128[length];
+        for (int i = 0; i < length; i++) patched[i] = Bit(validity, i) ? right[i] : Int128.One;
+        Int128[] expected = new Int128[length];
+        SpanDivideKernel.Divide(left, type, patched, type, expected, resultType,
+            DecimalRounding.HalfEven, DecimalOverflow.Ignore);
+
+        const int sentinel = -424242;
+        Int128[] actual = new Int128[length];
+        for (int i = 0; i < length; i++) actual[i] = sentinel;
+        ulong[] mask = NewMask(length);
+
+        int count = SpanDivideKernel.Divide(left, type, right, type, actual, resultType,
+            validity, mask);
+
+        Assert.Equal(0, count);
+        for (int i = 0; i < length; i++)
+        {
+            if (Bit(validity, i))
+                Assert.Equal(expected[i], actual[i]);
+            else
+                Assert.Equal((Int128)sentinel, actual[i]);   // untouched
+            Assert.False(Bit(mask, i));
+        }
+        Assert.True(validCount > 0);
+    }
+
+    [Theory]
+    [MemberData(nameof(Lengths))]
+    public void Modulus64_Validity_MatchesDenseOnTheValidRows(int length)
+    {
+        var type = DecimalType.Numeric(18, 2);
+        var rng = new Random(23);
+        ulong[] validity = BuildValidity(length, 24, out _);
+
+        long[] left = new long[length], right = new long[length];
+        for (int i = 0; i < length; i++)
+        {
+            left[i] = RandomInt64(rng, -1_000_000_000L, 1_000_000_000L);
+            right[i] = Bit(validity, i) ? RandomInt64(rng, 1, 100_000) : 0L;
+        }
+
+        long[] patched = new long[length];
+        for (int i = 0; i < length; i++) patched[i] = Bit(validity, i) ? right[i] : 1L;
+        long[] expected = new long[length];
+        SpanModulusKernel.Modulus(left, type, patched, type, expected, type,
+            DecimalRounding.HalfEven, DecimalOverflow.Ignore);
+
+        long[] actual = new long[length];
+        for (int i = 0; i < length; i++) actual[i] = long.MinValue;
+        ulong[] mask = NewMask(length);
+
+        int count = SpanModulusKernel.Modulus(left, type, right, type, actual, type, validity, mask);
+
+        Assert.Equal(0, count);
+        for (int i = 0; i < length; i++)
+        {
+            if (Bit(validity, i))
+                Assert.Equal(expected[i], actual[i]);
+            else
+                Assert.Equal(long.MinValue, actual[i]);
+        }
+    }
+
+    [Fact]
+    public void Divide_Validity_DoesNotDivideByAZeroUnderANullSlot()
+    {
+        // The whole point: the dense overload throws on this input, the
+        // validity-aware one does not.
+        var type = DecimalType.Numeric(38, 2);
+        var resultType = DecimalType.Numeric(38, 4);
+        Int128[] left = [100, 200, 300];
+        Int128[] right = [5, 0, 3];       // element 1 is null, and holds zero
+        Int128[] result = new Int128[3];
+        ulong[] validity = [0b101];
+        ulong[] mask = NewMask(3);
+
+        Assert.Throws<DivideByZeroException>(() =>
+            SpanDivideKernel.Divide(left, type, right, type, result, resultType,
+                DecimalRounding.HalfEven, DecimalOverflow.Ignore));
+
+        int count = SpanDivideKernel.Divide(left, type, right, type, result, resultType, validity, mask);
+
+        Assert.Equal(0, count);
+        Assert.Equal((Int128)200_000, result[0]);   // 100 / 5 at scale 4
+        Assert.Equal(Int128.Zero, result[1]);       // never written
+        Assert.Equal((Int128)1_000_000, result[2]); // 300 / 3 at scale 4
+    }
+
+    [Fact]
+    public void Divide_Validity_StillThrowsOnAZeroDivisorInAValidRow()
+    {
+        var type = DecimalType.Numeric(38, 2);
+        var resultType = DecimalType.Numeric(38, 4);
+        Int128[] left = [100, 200];
+        Int128[] right = [5, 0];
+        Int128[] result = new Int128[2];
+        ulong[] validity = [0b11];     // row 1 is valid and its divisor is zero
+        ulong[] mask = NewMask(2);
+
+        Assert.Throws<DivideByZeroException>(() =>
+            SpanDivideKernel.Divide(left, type, right, type, result, resultType, validity, mask));
+    }
+
+    [Fact]
+    public void Divide_Validity_ReportsOutOfRangeOnlyForValidRows()
+    {
+        var type = DecimalType.Numeric(38, 0);
+        var resultType = DecimalType.Numeric(2, 0);   // bounds at 99
+        Int128[] left = [1000, 1000, 4];
+        Int128[] right = [1, 1, 2];
+        Int128[] result = new Int128[3];
+        ulong[] validity = [0b101];                   // row 1 is null
+        ulong[] mask = NewMask(3);
+
+        int count = SpanDivideKernel.Divide(left, type, right, type, result, resultType, validity, mask);
+
+        Assert.Equal(1, count);
+        Assert.True(Bit(mask, 0));    // 1000 needs three digits
+        Assert.False(Bit(mask, 1));   // skipped, so not flagged
+        Assert.False(Bit(mask, 2));   // 2 fits
+        Assert.Equal((Int128)1000, result[0]);
+        Assert.Equal((Int128)2, result[2]);
+    }
+
+    [Fact]
+    public void Divide_Validity_IgnoresBitsPastTheEndOfTheSpan()
+    {
+        // An all-ones validity word over a five-element column must not send the
+        // loop past the end of the operands.
+        var type = DecimalType.Numeric(38, 0);
+        Int128[] left = [10, 20, 30, 40, 50];
+        Int128[] right = [1, 2, 3, 4, 5];
+        Int128[] result = new Int128[5];
+        ulong[] validity = [ulong.MaxValue];
+        ulong[] mask = NewMask(5);
+
+        int count = SpanDivideKernel.Divide(left, type, right, type, result, type, validity, mask);
+
+        Assert.Equal(0, count);
+        Assert.Equal([(Int128)10, (Int128)10, (Int128)10, (Int128)10, (Int128)10], result);
+    }
+
+    [Fact]
+    public void Divide_Validity_AllNullTouchesNothing()
+    {
+        var type = DecimalType.Numeric(38, 0);
+        Int128[] left = [10, 20, 30];
+        Int128[] right = [0, 0, 0];
+        Int128[] result = [(Int128)7, (Int128)7, (Int128)7];
+        ulong[] validity = NewMask(3);      // every bit clear
+        ulong[] mask = [ulong.MaxValue];
+
+        int count = SpanDivideKernel.Divide(left, type, right, type, result, type, validity, mask);
+
+        Assert.Equal(0, count);
+        Assert.Equal([(Int128)7, (Int128)7, (Int128)7], result);
+        Assert.Equal(0UL, mask[0]);
+    }
+
+    [Fact]
+    public void Divide_Validity_RejectsAShortValidityMask()
+    {
+        var type = DecimalType.Numeric(38, 0);
+        Int128[] left = new Int128[65], right = new Int128[65], result = new Int128[65];
+        ulong[] validity = new ulong[1];    // 65 elements need two words
+        ulong[] mask = NewMask(65);
+
+        Assert.Throws<ArgumentException>(() =>
+            SpanDivideKernel.Divide(left, type, right, type, result, type, validity, mask));
+    }
+
+    [Fact]
+    public void Divide_Validity_RejectsAShortOutOfRangeMask()
+    {
+        var type = DecimalType.Numeric(38, 0);
+        Int128[] left = new Int128[65], right = new Int128[65], result = new Int128[65];
+        ulong[] validity = NewMask(65);
+        ulong[] mask = new ulong[1];
+
+        Assert.Throws<ArgumentException>(() =>
+            SpanDivideKernel.Divide(left, type, right, type, result, type, validity, mask));
+    }
+
+    [Fact]
+    public void ModulusWiden_Validity_MatchesDenseOnTheValidRows()
+    {
+        var type = DecimalType.Numeric(9, 2);
+        var resultType = DecimalType.Numeric(18, 2);
+        int[] left = [1000, 2000, 3000, 4000];
+        int[] right = [7, 0, 11, 0];
+        long[] result = new long[4];
+        for (int i = 0; i < result.Length; i++) result[i] = -1L;
+        ulong[] validity = [0b0101];
+        ulong[] mask = NewMask(4);
+
+        int count = SpanModulusKernel.ModulusWiden(left, type, right, type, result, resultType,
+            validity, mask);
+
+        Assert.Equal(0, count);
+        Assert.Equal(1000L % 7, result[0]);
+        Assert.Equal(-1L, result[1]);
+        Assert.Equal(3000L % 11, result[2]);
+        Assert.Equal(-1L, result[3]);
+    }
+
+    [Fact]
+    public void Divide_Validity_TrailingPartialWordIsIterated()
+    {
+        // 65 elements: the second mask word holds exactly one live bit, which is
+        // the case a word-at-a-time loop is most likely to drop.
+        var type = DecimalType.Numeric(38, 0);
+        int length = 65;
+        Int128[] left = new Int128[length], right = new Int128[length];
+        for (int i = 0; i < length; i++) { left[i] = 84; right[i] = 4; }
+        Int128[] result = new Int128[length];
+        ulong[] validity = NewMask(length);
+        validity[1] |= 1UL;                 // element 64 only
+        ulong[] mask = NewMask(length);
+
+        int count = SpanDivideKernel.Divide(left, type, right, type, result, type, validity, mask);
+
+        Assert.Equal(0, count);
+        Assert.Equal((Int128)21, result[64]);
+        Assert.Equal(Int128.Zero, result[63]);
     }
 }

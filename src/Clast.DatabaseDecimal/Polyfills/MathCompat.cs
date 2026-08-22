@@ -52,4 +52,24 @@ internal static class MathCompat
         return System.Numerics.BitOperations.LeadingZeroCount(value);
 #endif
     }
+
+    /// <summary>
+    /// Counts the trailing zero bits in a 64-bit value. Returns 64 for zero.
+    /// </summary>
+    public static int TrailingZeroCount(ulong value)
+    {
+#if NETSTANDARD2_0
+        if (value == 0) return 64;
+        int count = 0;
+        if ((value & 0x00000000FFFFFFFFUL) == 0) { count += 32; value >>= 32; }
+        if ((value & 0x000000000000FFFFUL) == 0) { count += 16; value >>= 16; }
+        if ((value & 0x00000000000000FFUL) == 0) { count += 8;  value >>= 8;  }
+        if ((value & 0x000000000000000FUL) == 0) { count += 4;  value >>= 4;  }
+        if ((value & 0x0000000000000003UL) == 0) { count += 2;  value >>= 2;  }
+        if ((value & 0x0000000000000001UL) == 0) { count += 1;                }
+        return count;
+#else
+        return System.Numerics.BitOperations.TrailingZeroCount(value);
+#endif
+    }
 }
