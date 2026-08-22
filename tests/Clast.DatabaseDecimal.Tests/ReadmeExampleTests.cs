@@ -139,10 +139,10 @@ public class ReadmeExampleTests
         var mantissas = new Int128[] { value.Mantissa, Int128.One };
         DecimalBinary.WriteInt128(mantissas, column, byteWidth: 16, DecimalByteOrder.LittleEndian);
 
-        var read = new Int128[2];
-        DecimalBinary.ReadInt128(column, byteWidth: 16, DecimalByteOrder.LittleEndian, read);
+        var read = new Decimal128[2];
+        DecimalBinary.ReadDecimal128(column, byteWidth: 16, DecimalByteOrder.LittleEndian, read);
 
-        Assert.Equal(mantissas, read);
+        Assert.Equal(mantissas.Select(m => new Decimal128(m)), read);
 
         // The narrow big-endian field carries the same value back.
         Assert.Equal(value.Mantissa, DecimalBinary.ReadInt128(field, DecimalByteOrder.BigEndian));

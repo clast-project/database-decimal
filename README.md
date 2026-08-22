@@ -192,9 +192,16 @@ var column = new byte[2 * 16];
 var mantissas = new Int128[] { value.Mantissa, Int128.One };
 DecimalBinary.WriteInt128(mantissas, column, byteWidth: 16, DecimalByteOrder.LittleEndian);
 
-var read = new Int128[2];
-DecimalBinary.ReadInt128(column, byteWidth: 16, DecimalByteOrder.LittleEndian, read);
+// Or straight into decimal values, when that is what the caller holds.
+var read = new Decimal128[2];
+DecimalBinary.ReadDecimal128(column, byteWidth: 16, DecimalByteOrder.LittleEndian, read);
 ```
+
+Every tier has the same shape: `ReadInt32`/`ReadInt64`/`ReadInt128`/`ReadInt256`
+with their `Try`, `Write`, and column forms, plus `ReadDecimal32` through
+`ReadDecimal256` for columns of the wrapper types. A field of the mantissa's own
+width needs no fit check, so those columns move as a copy on a little-endian
+host and a byte swap per element otherwise.
 
 The field width is the length of the span, not the width of the mantissa type. A
 read sign-extends from the top bit of the field, so a 12-byte field of `0xFF`
