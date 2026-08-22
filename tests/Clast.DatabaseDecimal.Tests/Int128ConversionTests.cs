@@ -33,8 +33,11 @@ namespace Clast.DatabaseDecimal.Tests;
 /// </remarks>
 public class Int128ConversionTests
 {
-    // No casts anywhere in this class. A cast would compile against an explicit
-    // conversion and hide exactly what is under test.
+    // Nothing in the widening tests casts *to* Int128: a cast would bind to an
+    // explicit conversion and keep compiling even with the implicit one missing,
+    // which is the whole thing under test. Casts that pick a source type —
+    // (sbyte)-128 — are fine, and the last two tests cast to and from Int128 on
+    // purpose, since that is what they are checking.
 
     [Fact]
     public void SignedWidenings_KeepTheirSign()
@@ -44,10 +47,10 @@ public class Int128ConversionTests
         Int128 fromInt = int.MinValue;
         Int128 fromLong = long.MinValue;
 
-        Assert.Equal(NumericOracle.ToBig(fromSByte), new BigInteger(-128));
-        Assert.Equal(NumericOracle.ToBig(fromShort), new BigInteger(-32_768));
-        Assert.Equal(NumericOracle.ToBig(fromInt), new BigInteger(int.MinValue));
-        Assert.Equal(NumericOracle.ToBig(fromLong), new BigInteger(long.MinValue));
+        Assert.Equal(new BigInteger(-128), NumericOracle.ToBig(fromSByte));
+        Assert.Equal(new BigInteger(-32_768), NumericOracle.ToBig(fromShort));
+        Assert.Equal(new BigInteger(int.MinValue), NumericOracle.ToBig(fromInt));
+        Assert.Equal(new BigInteger(long.MinValue), NumericOracle.ToBig(fromLong));
     }
 
     [Fact]
