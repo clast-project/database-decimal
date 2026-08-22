@@ -224,6 +224,14 @@ public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>
 
     // --- Conversions ---
 
+    // Every widening the BCL type makes implicit is declared implicit here too,
+    // and the whole set has to be declared rather than just the ones a caller
+    // trips over. C# picks the most encompassed source type among the candidate
+    // operators, so a partial set resolves by chaining a standard conversion
+    // first — byte reaches Int128 through int — and adding one more operator can
+    // leave no unique most-encompassed type and break conversions that used to
+    // work. Promoting only ulong, for instance, makes byte, char, ushort and
+    // uint all ambiguous (CS0457).
     public static implicit operator Int128(int value) =>
         new((value < 0) ? ulong.MaxValue : 0UL, (ulong)(long)value);
 
@@ -232,9 +240,16 @@ public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>
 
     public static implicit operator Int128(short value) => (Int128)(int)value;
     public static implicit operator Int128(sbyte value) => (Int128)(int)value;
+    public static implicit operator Int128(byte value) => new(0, value);
+    public static implicit operator Int128(char value) => new(0, value);
+    public static implicit operator Int128(ushort value) => new(0, value);
+    public static implicit operator Int128(uint value) => new(0, value);
+    public static implicit operator Int128(ulong value) => new(0, value);
 
-    public static explicit operator Int128(uint value) => new(0, value);
-    public static explicit operator Int128(ulong value) => new(0, value);
+    // nint and nuint are IntPtr and UIntPtr on this target, so these are
+    // conversions from those types and cost nothing at runtime.
+    public static implicit operator Int128(nint value) => (Int128)(long)value;
+    public static implicit operator Int128(nuint value) => (Int128)(ulong)value;
 
     public static explicit operator long(Int128 value) => (long)value._lower;
     public static explicit operator int(Int128 value) => (int)value._lower;
