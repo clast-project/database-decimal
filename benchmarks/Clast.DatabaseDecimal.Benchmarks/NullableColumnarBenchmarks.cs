@@ -29,7 +29,10 @@ public class FoldedMaskBenchmarks
     private long[] _right = null!;
     private long[] _result = null!;
     private ulong[] _mask = null!;
+    private int[] _narrowLeft = null!;
+    private int[] _narrowRight = null!;
 
+    private static readonly DecimalType T32S2 = DecimalType.Numeric(9, 2);
     private static readonly DecimalType T64S2 = DecimalType.Numeric(18, 2);
 
     [GlobalSetup]
@@ -40,11 +43,15 @@ public class FoldedMaskBenchmarks
         _right = new long[N];
         _result = new long[N];
         _mask = new ulong[DecimalRange.MaskWordCount(N)];
+        _narrowLeft = new int[N];
+        _narrowRight = new int[N];
 
         for (int i = 0; i < N; i++)
         {
             _left[i] = rng.NextInt64(-1_000_000_000L, 1_000_000_000L);
             _right[i] = rng.NextInt64(-1_000_000_000L, 1_000_000_000L);
+            _narrowLeft[i] = rng.Next(-100_000_000, 100_000_000);
+            _narrowRight[i] = rng.Next(-100_000_000, 100_000_000);
         }
     }
 
@@ -65,6 +72,18 @@ public class FoldedMaskBenchmarks
     [Benchmark]
     public int Subtract_Int64_FoldedMask() =>
         SpanAddKernel.Subtract(_left, T64S2, _right, T64S2, _result, T64S2, _mask);
+
+    /// <summary>
+    /// The widening pair, whose vectorised path widens each 32-bit chunk into
+    /// two 64-bit vectors and so reports mask bits for two half-chunks per step.
+    /// </summary>
+    [Benchmark]
+    public int AddWiden_Int32_To_Int64_FoldedMask() =>
+        SpanAddKernel.AddWiden(_narrowLeft, T32S2, _narrowRight, T32S2, _result, T64S2, _mask);
+
+    [Benchmark]
+    public int SubtractWiden_Int32_To_Int64_FoldedMask() =>
+        SpanAddKernel.SubtractWiden(_narrowLeft, T32S2, _narrowRight, T32S2, _result, T64S2, _mask);
 }
 
 /// <summary>

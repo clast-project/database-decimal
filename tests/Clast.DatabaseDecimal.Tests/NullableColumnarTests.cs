@@ -294,6 +294,108 @@ public class NullableColumnarTests
         Assert.True(expectedCount > 0);
     }
 
+    [Theory]
+    [MemberData(nameof(Lengths))]
+    public void SubtractWiden32To64_FoldedMask_MatchesKernelPlusSeparatePass(int length)
+    {
+        var operandType = DecimalType.Numeric(9, 2);
+        // A result precision the widened difference can exceed, so the mask has
+        // something to say.
+        var resultType = DecimalType.Numeric(9, 2);
+        var rng = new Random(41);
+        int[] left = new int[length], right = new int[length];
+        for (int i = 0; i < length; i++)
+        {
+            left[i] = rng.Next(-900_000_000, 900_000_000);
+            right[i] = rng.Next(-900_000_000, 900_000_000);
+        }
+        left[0] = -900_000_000; right[0] = 900_000_000;
+
+        long[] expected = new long[length];
+        SpanAddKernel.SubtractWiden(left, operandType, right, operandType, expected, resultType,
+            DecimalRounding.HalfEven, DecimalOverflow.Ignore);
+        ulong[] expectedMask = NewMask(length);
+        int expectedCount = DecimalRange.WriteOutOfRangeMask(expected, resultType, expectedMask);
+
+        long[] actual = new long[length];
+        ulong[] actualMask = NewMask(length);
+        int actualCount = SpanAddKernel.SubtractWiden(left, operandType, right, operandType, actual, resultType, actualMask);
+
+        Assert.Equal(expected, actual);
+        Assert.Equal(expectedMask, actualMask);
+        Assert.Equal(expectedCount, actualCount);
+        Assert.True(expectedCount > 0);
+    }
+
+    [Theory]
+    [MemberData(nameof(Lengths))]
+    public void SubtractWiden64To128_FoldedMask_MatchesKernelPlusSeparatePass(int length)
+    {
+        var operandType = DecimalType.Numeric(18, 2);
+        var resultType = DecimalType.Numeric(18, 2);
+        var rng = new Random(42);
+        long[] left = new long[length], right = new long[length];
+        for (int i = 0; i < length; i++)
+        {
+            left[i] = RandomInt64(rng, -900_000_000_000_000_000L, 900_000_000_000_000_000L);
+            right[i] = RandomInt64(rng, -900_000_000_000_000_000L, 900_000_000_000_000_000L);
+        }
+        left[0] = -900_000_000_000_000_000L; right[0] = 900_000_000_000_000_000L;
+
+        Int128[] expected = new Int128[length];
+        SpanAddKernel.SubtractWiden(left, operandType, right, operandType, expected, resultType,
+            DecimalRounding.HalfEven, DecimalOverflow.Ignore);
+        ulong[] expectedMask = NewMask(length);
+        int expectedCount = DecimalRange.WriteOutOfRangeMask(expected, resultType, expectedMask);
+
+        Int128[] actual = new Int128[length];
+        ulong[] actualMask = NewMask(length);
+        int actualCount = SpanAddKernel.SubtractWiden(left, operandType, right, operandType, actual, resultType, actualMask);
+
+        Assert.Equal(expected, actual);
+        Assert.Equal(expectedMask, actualMask);
+        Assert.Equal(expectedCount, actualCount);
+        Assert.True(expectedCount > 0);
+    }
+
+    [Theory]
+    [MemberData(nameof(Lengths))]
+    public void SubtractWiden128To256_FoldedMask_MatchesKernelPlusSeparatePass(int length)
+    {
+        var operandType = DecimalType.Numeric(38, 2);
+        var resultType = DecimalType.Numeric(38, 2);
+        var rng = new Random(43);
+        Int128[] left = new Int128[length], right = new Int128[length];
+        for (int i = 0; i < length; i++)
+        {
+            left[i] = (Int128)RandomInt64(rng) * 90;
+            right[i] = (Int128)RandomInt64(rng) * 90;
+        }
+        // 9e37 each way, so the difference is 1.8e38 against NUMERIC(38,2)'s
+        // bound of 10^38. Built by repeated multiplication because 10^37 does
+        // not fit a long literal.
+        Int128 nine37 = Int128.One;
+        for (int k = 0; k < 37; k++) nine37 *= 10;
+        nine37 *= 9;
+        left[0] = -nine37;
+        right[0] = nine37;
+
+        Int256[] expected = new Int256[length];
+        SpanAddKernel.SubtractWiden(left, operandType, right, operandType, expected, resultType,
+            DecimalRounding.HalfEven, DecimalOverflow.Ignore);
+        ulong[] expectedMask = NewMask(length);
+        int expectedCount = DecimalRange.WriteOutOfRangeMask(expected, resultType, expectedMask);
+
+        Int256[] actual = new Int256[length];
+        ulong[] actualMask = NewMask(length);
+        int actualCount = SpanAddKernel.SubtractWiden(left, operandType, right, operandType, actual, resultType, actualMask);
+
+        Assert.Equal(expected, actual);
+        Assert.Equal(expectedMask, actualMask);
+        Assert.Equal(expectedCount, actualCount);
+        Assert.True(expectedCount > 0);
+    }
+
     [Fact]
     public void FoldedMask_RescalingPath_MatchesKernelPlusSeparatePass()
     {
