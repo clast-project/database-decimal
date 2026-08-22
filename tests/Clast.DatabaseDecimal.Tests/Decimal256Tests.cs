@@ -127,6 +127,28 @@ public class Decimal256Tests
     }
 
     [Fact]
+    public void Subtract_Widening_128To256()
+    {
+        var leftType = DecimalType.Numeric(38, 0);
+        var rightType = DecimalType.Numeric(38, 0);
+        var wideResultType = DecimalType.Numeric(39, 0); // 256-bit result
+
+        Assert.Equal(DecimalWidth.W256, wideResultType.Width);
+
+        var left = new Decimal128(Int128.MaxValue / 2);
+        var right = new Decimal128(-(Int128.MaxValue / 2));
+
+        var result = AddKernel.SubtractWiden(left, leftType, right, rightType, wideResultType);
+        var expected = (Int256)(Int128.MaxValue / 2) - (Int256)(-(Int128.MaxValue / 2));
+        Assert.Equal(expected, result.Mantissa);
+
+        // The by-hand workaround: promote both operands and subtract at 256-bit.
+        var byHand = AddKernel.Subtract(
+            (Decimal256)left, leftType, (Decimal256)right, rightType, wideResultType);
+        Assert.Equal(byHand.Mantissa, result.Mantissa);
+    }
+
+    [Fact]
     public void Multiply_Widening_128To256()
     {
         var leftType = DecimalType.Numeric(20, 5);

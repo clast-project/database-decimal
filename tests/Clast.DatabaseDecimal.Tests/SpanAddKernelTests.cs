@@ -101,6 +101,73 @@ public class SpanAddKernelTests
     }
 
     // ----------------------------------------------------------------
+    // Subtract — column - column, widening
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void SubtractWiden_32To64()
+    {
+        var type = DecimalType.Numeric(9, 2);
+        var resultType = DecimalType.Numeric(10, 2);
+
+        int[] left = [999_999_999, 500_000_000];
+        int[] right = [-999_999_999, -500_000_000];
+        long[] result = new long[2];
+
+        SpanAddKernel.SubtractWiden(left, type, right, type, result, resultType);
+
+        Assert.Equal([1_999_999_998L, 1_000_000_000L], result);
+    }
+
+    [Fact]
+    public void SubtractWiden_32To64_DifferentScales()
+    {
+        var leftType = DecimalType.Numeric(9, 0);
+        var rightType = DecimalType.Numeric(9, 2);
+        var resultType = DecimalType.Numeric(12, 2);
+
+        int[] left = [1, -1];
+        int[] right = [50, -50];
+        long[] result = new long[2];
+
+        SpanAddKernel.SubtractWiden(left, leftType, right, rightType, result, resultType);
+
+        Assert.Equal([50L, -50L], result); // 1.00 - 0.50, -1.00 - -0.50
+    }
+
+    [Fact]
+    public void SubtractWiden_64To128()
+    {
+        var type = DecimalType.Numeric(18, 0);
+        var resultType = DecimalType.Numeric(19, 0);
+
+        long[] left = [long.MaxValue / 2, 1_000_000_000_000_000_000];
+        long[] right = [-(long.MaxValue / 2), -2_000_000_000_000_000_000];
+        Int128[] result = new Int128[2];
+
+        SpanAddKernel.SubtractWiden(left, type, right, type, result, resultType);
+
+        Assert.Equal((Int128)(long.MaxValue / 2) + (long.MaxValue / 2), result[0]);
+        Assert.Equal((Int128)3_000_000_000_000_000_000, result[1]);
+    }
+
+    [Fact]
+    public void SubtractWiden_128To256()
+    {
+        var type = DecimalType.Numeric(38, 0);
+        var resultType = DecimalType.Numeric(39, 0);
+
+        Int128[] left = [Int128.MaxValue / 2];
+        Int128[] right = [-(Int128.MaxValue / 2)];
+        Int256[] result = new Int256[1];
+
+        SpanAddKernel.SubtractWiden(left, type, right, type, result, resultType);
+
+        Int256 expected = (Int256)(Int128.MaxValue / 2) + (Int256)(Int128.MaxValue / 2);
+        Assert.Equal(expected, result[0]);
+    }
+
+    // ----------------------------------------------------------------
     // Add — column + scalar (broadcast)
     // ----------------------------------------------------------------
 
@@ -467,6 +534,29 @@ public class SpanAddKernelTests
         }
         long[] result = new long[n];
         SpanAddKernel.AddWiden(left, type, right, type, result, resultType);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void SubtractWiden_32To64_SimdChunkedAndTail_PreservesElementOrder()
+    {
+        // As with the widening add, Vector.Widen splits each Vector<int> into
+        // lower/upper Vector<long> halves; this checks every index, so a swap
+        // of the low/high writes cannot pass.
+        var type = DecimalType.Numeric(9, 2);
+        var resultType = DecimalType.Numeric(10, 2);
+        int n = 23;
+        int[] left = new int[n];
+        int[] right = new int[n];
+        long[] expected = new long[n];
+        for (int i = 0; i < n; i++)
+        {
+            left[i] = int.MaxValue - i;
+            right[i] = int.MinValue + 2 * i;
+            expected[i] = (long)left[i] - right[i];
+        }
+        long[] result = new long[n];
+        SpanAddKernel.SubtractWiden(left, type, right, type, result, resultType);
         Assert.Equal(expected, result);
     }
 

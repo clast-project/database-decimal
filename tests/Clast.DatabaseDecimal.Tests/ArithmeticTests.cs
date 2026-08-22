@@ -88,6 +88,86 @@ public class ArithmeticTests
         Assert.Equal("-1.50", result.ToString(resultType.Scale));
     }
 
+    [Fact]
+    public void Subtract_Widening_32To64()
+    {
+        // Two NUMERIC(9,2) values whose difference exceeds 32-bit
+        var type = DecimalType.Numeric(9, 2);
+        var resultType = DecimalTypeRules.Subtract(type, type); // NUMERIC(10,2) => 64-bit
+
+        Assert.Equal(DecimalWidth.W64, resultType.Width);
+
+        var left = new Decimal32(999_999_999);   // 9,999,999.99
+        var right = new Decimal32(-999_999_999); // -9,999,999.99
+
+        var result = AddKernel.SubtractWiden(left, type, right, type, resultType);
+        Assert.Equal(1_999_999_998L, result.Mantissa); // 19,999,999.98
+    }
+
+    [Fact]
+    public void Subtract_Widening_64To128()
+    {
+        var type = DecimalType.Numeric(18, 0);
+        var resultType = DecimalTypeRules.Subtract(type, type); // NUMERIC(19,0) => 128-bit
+
+        Assert.Equal(DecimalWidth.W128, resultType.Width);
+
+        var left = new Decimal64(long.MaxValue / 2);
+        var right = new Decimal64(-(long.MaxValue / 2));
+
+        var result = AddKernel.SubtractWiden(left, type, right, type, resultType);
+        Assert.Equal((Int128)(long.MaxValue / 2) - -(Int128)(long.MaxValue / 2), result.Mantissa);
+    }
+
+    [Fact]
+    public void SubtractWiden_MatchesPromotingBothOperandsFirst()
+    {
+        // The workaround SubtractWiden replaces: promote to the wider tier by
+        // hand and subtract there. Rescaling is monotone in the mantissa, so the
+        // two must agree — including when the operands carry different scales.
+        var leftType = DecimalType.Numeric(9, 2);
+        var rightType = DecimalType.Numeric(9, 4);
+        var resultType = DecimalTypeRules.Subtract(leftType, rightType); // NUMERIC(12,4)
+
+        Assert.Equal(DecimalWidth.W64, resultType.Width);
+
+        int[] mantissas = [0, 1, -1, 12_345, -12_345, 999_999_999, -999_999_999];
+        foreach (int l in mantissas)
+        {
+            foreach (int r in mantissas)
+            {
+                var widened = AddKernel.SubtractWiden(
+                    new Decimal32(l), leftType, new Decimal32(r), rightType, resultType);
+                var byHand = AddKernel.Subtract(
+                    new Decimal64(l), leftType, new Decimal64(r), rightType, resultType);
+
+                Assert.Equal(byHand.Mantissa, widened.Mantissa);
+            }
+        }
+    }
+
+    [Fact]
+    public void SubtractWiden_PastResultPrecision_Throws()
+    {
+        var type = DecimalType.Numeric(9, 0);
+
+        // The difference needs 10 digits, but the result type allows 9.
+        Assert.Throws<OverflowException>(() => AddKernel.SubtractWiden(
+            new Decimal32(999_999_999), type, new Decimal32(-1), type, type));
+    }
+
+    [Fact]
+    public void SubtractWiden_PastResultPrecision_Ignore_DoesNotThrow()
+    {
+        var type = DecimalType.Numeric(9, 0);
+
+        var result = AddKernel.SubtractWiden(
+            new Decimal32(999_999_999), type, new Decimal32(-1), type, type,
+            DecimalRounding.HalfEven, DecimalOverflow.Ignore);
+
+        Assert.Equal(1_000_000_000L, result.Mantissa);
+    }
+
     // --- Multiplication ---
 
     [Fact]
