@@ -1169,6 +1169,87 @@ public static class SpanAddKernel
         return count;
     }
 
+    /// <inheritdoc cref="Subtract(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    public static int SubtractWiden(
+        ReadOnlySpan<int> left, DecimalType leftType,
+        ReadOnlySpan<int> right, DecimalType rightType,
+        Span<long> result, DecimalType resultType,
+        Span<ulong> outOfRangeMask,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
+    {
+        ValidateLengths(left.Length, right.Length, result.Length);
+        Span<ulong> mask = MaskWords.PrepareOut(left.Length, outOfRangeMask, nameof(outOfRangeMask));
+        DecimalRange.GetBounds(resultType, out long lower, out long upper);
+
+        int ld = resultType.Scale - leftType.Scale;
+        int rd = resultType.Scale - rightType.Scale;
+
+        if (ld == 0 && rd == 0)
+            return SubtractWidenSameScale32To64Masked(left, right, result, lower, upper, mask);
+
+        int count = 0;
+        for (int i = 0; i < left.Length; i++)
+        {
+            long value = checked(ScaleHelper.WidenByDelta32To64(left[i], ld, rounding)
+                - ScaleHelper.WidenByDelta32To64(right[i], rd, rounding));
+            result[i] = value;
+            if (value < lower || value > upper) { mask[i >> 6] |= 1UL << (i & 63); count++; }
+        }
+        return count;
+    }
+
+    /// <inheritdoc cref="Subtract(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    public static int SubtractWiden(
+        ReadOnlySpan<long> left, DecimalType leftType,
+        ReadOnlySpan<long> right, DecimalType rightType,
+        Span<Int128> result, DecimalType resultType,
+        Span<ulong> outOfRangeMask,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
+    {
+        ValidateLengths(left.Length, right.Length, result.Length);
+        Span<ulong> mask = MaskWords.PrepareOut(left.Length, outOfRangeMask, nameof(outOfRangeMask));
+        DecimalRange.GetBounds(resultType, out Int128 lower, out Int128 upper);
+
+        int ld = resultType.Scale - leftType.Scale;
+        int rd = resultType.Scale - rightType.Scale;
+
+        int count = 0;
+        for (int i = 0; i < left.Length; i++)
+        {
+            Int128 value = checked(ScaleHelper.WidenByDelta64To128(left[i], ld, rounding)
+                - ScaleHelper.WidenByDelta64To128(right[i], rd, rounding));
+            result[i] = value;
+            if (value < lower || value > upper) { mask[i >> 6] |= 1UL << (i & 63); count++; }
+        }
+        return count;
+    }
+
+    /// <inheritdoc cref="Subtract(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    public static int SubtractWiden(
+        ReadOnlySpan<Int128> left, DecimalType leftType,
+        ReadOnlySpan<Int128> right, DecimalType rightType,
+        Span<Int256> result, DecimalType resultType,
+        Span<ulong> outOfRangeMask,
+        DecimalRounding rounding = DecimalRounding.HalfEven)
+    {
+        ValidateLengths(left.Length, right.Length, result.Length);
+        Span<ulong> mask = MaskWords.PrepareOut(left.Length, outOfRangeMask, nameof(outOfRangeMask));
+        DecimalRange.GetBounds(resultType, out Int256 lower, out Int256 upper);
+
+        int ld = resultType.Scale - leftType.Scale;
+        int rd = resultType.Scale - rightType.Scale;
+
+        int count = 0;
+        for (int i = 0; i < left.Length; i++)
+        {
+            Int256 value = checked(ScaleHelper.WidenByDelta128To256(left[i], ld, rounding)
+                - ScaleHelper.WidenByDelta128To256(right[i], rd, rounding));
+            result[i] = value;
+            if (value < lower || value > upper) { mask[i >> 6] |= 1UL << (i & 63); count++; }
+        }
+        return count;
+    }
+
     // ================================================================
     // Inline rescale helpers — delta and rounding are both loop-invariant,
     // so the branch predictor handles the per-element branches perfectly.
@@ -1935,6 +2016,55 @@ public static class SpanAddKernel
         for (; i < left.Length; i++)
         {
             var value = (long)left[i] + right[i];
+            result[i] = value;
+            if (value < lower || value > upper) { mask[i >> 6] |= 1UL << (i & 63); count++; }
+        }
+
+        return count;
+    }
+
+    private static int SubtractWidenSameScale32To64Masked(ReadOnlySpan<int> left, ReadOnlySpan<int> right, Span<long> result, long lower, long upper, Span<ulong> mask)
+    {
+        int i = 0;
+        int count = 0;
+#if NET5_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated && left.Length >= Vector<int>.Count)
+        {
+            ReadOnlySpan<Vector<int>> lv = MemoryMarshal.Cast<int, Vector<int>>(left);
+            ReadOnlySpan<Vector<int>> rv = MemoryMarshal.Cast<int, Vector<int>>(right);
+            Span<Vector<long>> ov = MemoryMarshal.Cast<long, Vector<long>>(result);
+            int chunks = lv.Length;
+            // As in the bool-returning sibling, the difference of two widened
+            // 32-bit values cannot overflow 64 bits, so there is no overflow
+            // accumulator — only the declared precision has to be reported, on
+            // both halves of each widened pair.
+            int halfLanes = Vector<long>.Count;
+            Vector<long> loVec = new Vector<long>(lower);
+            Vector<long> hiVec = new Vector<long>(upper);
+            for (int k = 0; k < chunks; k++)
+            {
+                Vector<int> a = lv[k];
+                Vector<int> b = rv[k];
+                Vector.Widen(a, out Vector<long> aLo, out Vector<long> aHi);
+                Vector.Widen(b, out Vector<long> bLo, out Vector<long> bHi);
+                Vector<long> low = aLo - bLo;
+                Vector<long> high = aHi - bHi;
+                Vector<long> badLow = Vector.LessThan(low, loVec) | Vector.GreaterThan(low, hiVec);
+                Vector<long> badHigh = Vector.LessThan(high, loVec) | Vector.GreaterThan(high, hiVec);
+                ov[k * 2] = low;
+                ov[k * 2 + 1] = high;
+                int b0 = k * Vector<int>.Count;
+                if (badLow != Vector<long>.Zero)
+                    count += FlagLanes64(badLow, b0, mask);
+                if (badHigh != Vector<long>.Zero)
+                    count += FlagLanes64(badHigh, b0 + halfLanes, mask);
+            }
+            i = chunks * Vector<int>.Count;
+        }
+#endif
+        for (; i < left.Length; i++)
+        {
+            var value = (long)left[i] - right[i];
             result[i] = value;
             if (value < lower || value > upper) { mask[i >> 6] |= 1UL << (i & 63); count++; }
         }
