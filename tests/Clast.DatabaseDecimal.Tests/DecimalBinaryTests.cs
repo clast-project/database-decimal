@@ -349,7 +349,20 @@ public class DecimalBinaryTests
         var ex = Assert.Throws<OverflowException>(() =>
             DecimalBinary.ReadInt128(buffer, 20, DecimalByteOrder.LittleEndian, new Int128[2]));
 
-        Assert.Contains("Field 1", ex.Message);
+        Assert.Contains("index 1", ex.Message);
+    }
+
+    [Fact]
+    public void BulkWrite_ReportsTheOffendingValue()
+    {
+        // Value 1 needs 13 bytes; the message has to say which element failed,
+        // in the same terms the read path uses.
+        Int128[] values = [Int128.One, ToInt128(BigInteger.One << 95)];
+
+        var ex = Assert.Throws<OverflowException>(() =>
+            DecimalBinary.WriteInt128(values, new byte[2 * 12], 12, DecimalByteOrder.LittleEndian));
+
+        Assert.Contains("index 1", ex.Message);
     }
 
     [Fact]

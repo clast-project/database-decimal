@@ -472,9 +472,9 @@ public static class DecimalBinary
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowElementUnreadable(int index, int byteWidth, int mantissaWidth) =>
         throw new OverflowException(
-            $"Field {index} of {byteWidth} bytes carries a value that does not fit a {mantissaWidth * 8}-bit mantissa.");
+            $"The field at index {index} ({byteWidth} bytes) carries a value that does not fit a {mantissaWidth * 8}-bit mantissa.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowElementUnwritable(int index, int byteWidth) =>
-        throw new OverflowException($"Value {index} does not fit a {byteWidth}-byte field.");
+        throw new OverflowException($"The value at index {index} does not fit its {byteWidth}-byte field.");
 }
