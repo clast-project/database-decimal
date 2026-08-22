@@ -13,6 +13,7 @@ Fixed-point decimal arithmetic for database engines, with mantissa tiers from 32
 - **Four mantissa tiers** — `Decimal32`, `Decimal64`, `Decimal128`, and `Decimal256`, covering precisions of 1–9, 10–18, 19–38, and 39–76 digits respectively. The right tier for a given precision is selected by `DecimalType.Width`.
 - **Scalar and span kernels** for add, subtract, multiply, divide, and modulus. The span (columnar) kernels operate over `ReadOnlySpan<T>` / `Span<T>` for batch evaluation without per-row allocations.
 - **UTF-8 and UTF-16 parsing and formatting** via `DecimalText`, with culture-invariant round-tripping.
+- **Raw binary mantissa access** via `DecimalBinary`, in either byte order and at any field width — the two's-complement layout Arrow and Parquet store decimals in.
 - **SQL Server / Substrait promotion rules** in `DecimalTypeRules`, so `(p1,s1) ⊕ (p2,s2)` yields the same result type a database planner would produce.
 - **Selectable rounding** via `DecimalRounding`, on every entry point that discards digits.
 
@@ -162,6 +163,53 @@ Measured over 65,536 rows of 128-bit divide against the patch-and-divide-densely
 workaround, it costs about 3% on a column with no nulls at all — the price of
 consulting the bitmap — breaks even somewhere below a tenth null, and runs twice
 as fast at half null.
+
+## Binary layout
+
+Arrow stores `decimal128` and `decimal256` as little-endian two's complement of
+the type's own width; Parquet stores DECIMAL on `FIXED_LEN_BYTE_ARRAY` as
+big-endian two's complement of whatever width the schema declares. `DecimalBinary`
+reads and writes both, without the caller reinterpreting the mantissa types'
+memory layout:
+
+```csharp
+using Clast.DatabaseDecimal;
+using Clast.DatabaseDecimal.Binary;
+using Clast.DatabaseDecimal.Values;
+
+// Parquet: DECIMAL on FIXED_LEN_BYTE_ARRAY is big-endian, at the width the
+// schema declares — usually narrower than the tier holding the value.
+var type = DecimalType.Numeric(precision: 20, scale: 4);
+int width = DecimalBinary.MinByteWidth(type);                  // 9 bytes for 20 digits
+
+var value = new Decimal128((Int128)(-12_345_678_901_234_567L)); // -1234567890123.4567
+var field = new byte[width];
+DecimalBinary.WriteInt128(value.Mantissa, field, DecimalByteOrder.BigEndian);
+
+// Arrow: a whole column of 16-byte little-endian fields. On a little-endian
+// host this is one copy rather than an element loop.
+var column = new byte[2 * 16];
+var mantissas = new Int128[] { value.Mantissa, Int128.One };
+DecimalBinary.WriteInt128(mantissas, column, byteWidth: 16, DecimalByteOrder.LittleEndian);
+
+var read = new Int128[2];
+DecimalBinary.ReadInt128(column, byteWidth: 16, DecimalByteOrder.LittleEndian, read);
+```
+
+The field width is the length of the span, not the width of the mantissa type. A
+read sign-extends from the top bit of the field, so a 12-byte field of `0xFF`
+reads as `-1`; a write sign-extends the value across the whole field, so `-5` in
+a 16-byte field is fifteen `0xFF` bytes then `0xFB`. A value the field cannot
+hold is rejected — `TryWrite*` returns false, `Write*` throws `OverflowException`,
+and the bulk overloads take `DecimalOverflow.Ignore` for callers that have
+already proven the range.
+
+This is deliberately not the shape of `IBinaryInteger.TryWriteLittleEndian`,
+which is all-or-nothing at the type's own width: it refuses a 12-byte
+destination even for a value that fits in 12 bytes, and fills only 16 bytes of a
+20-byte destination, leaving the rest without sign extension. Those members are
+also explicit interface implementations, reachable only through generic math —
+which netstandard2.0 does not have.
 
 ## Example
 

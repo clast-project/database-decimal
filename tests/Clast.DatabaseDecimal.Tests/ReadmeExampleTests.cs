@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 using Clast.DatabaseDecimal.Arithmetic;
+using Clast.DatabaseDecimal.Binary;
 using Clast.DatabaseDecimal.Text;
 using Clast.DatabaseDecimal.Values;
 using Xunit;
@@ -118,6 +119,36 @@ public class ReadmeExampleTests
         // The skipped row is left exactly as it was found.
         Assert.Equal(Int128.Zero, result[1]);
         Assert.Equal(new[] { (Int128)20_000_000, Int128.Zero, (Int128)100_000_000 }, result);
+    }
+
+    /// <summary>The "Binary layout" section.</summary>
+    [Fact]
+    public void BinaryLayout()
+    {
+        var type = DecimalType.Numeric(precision: 20, scale: 4);
+        int width = DecimalBinary.MinByteWidth(type);                  // 9 bytes for 20 digits
+        Assert.Equal(9, width);
+
+        var value = new Decimal128((Int128)(-12_345_678_901_234_567L)); // -1234567890123.4567
+        Assert.Equal("-1234567890123.4567", value.ToString(type.Scale));
+
+        var field = new byte[width];
+        DecimalBinary.WriteInt128(value.Mantissa, field, DecimalByteOrder.BigEndian);
+
+        var column = new byte[2 * 16];
+        var mantissas = new Int128[] { value.Mantissa, Int128.One };
+        DecimalBinary.WriteInt128(mantissas, column, byteWidth: 16, DecimalByteOrder.LittleEndian);
+
+        var read = new Int128[2];
+        DecimalBinary.ReadInt128(column, byteWidth: 16, DecimalByteOrder.LittleEndian, read);
+
+        Assert.Equal(mantissas, read);
+
+        // The narrow big-endian field carries the same value back.
+        Assert.Equal(value.Mantissa, DecimalBinary.ReadInt128(field, DecimalByteOrder.BigEndian));
+
+        // Sign extension fills the field's leading bytes, since the value is negative.
+        Assert.Equal(0xFF, field[0]);
     }
 
     /// <summary>The "Example" section.</summary>
