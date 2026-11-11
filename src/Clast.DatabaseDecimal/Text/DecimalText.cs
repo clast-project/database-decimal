@@ -1,6 +1,8 @@
 // Copyright (c) clast-project. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
+using System.Buffers;
+using System.Text;
 using Clast.DatabaseDecimal.Arithmetic;
 using Clast.DatabaseDecimal.Values;
 
@@ -9,7 +11,9 @@ namespace Clast.DatabaseDecimal.Text;
 /// <summary>
 /// Formats and parses fixed-point decimal values as text.
 /// Supports both UTF-16 (Span&lt;char&gt;) and UTF-8 (Span&lt;byte&gt;) targets.
-/// All characters in decimal text are ASCII, so char↔byte conversion is trivial.
+/// Formatted decimal text is ASCII, so the UTF-8 formatters write the same bytes as chars. Parse
+/// input need not be ASCII: the UTF-8 parsers decode it as <see cref="Encoding.UTF8"/> does and accept
+/// exactly what the UTF-16 parsers accept for the decoded text.
 /// </summary>
 public static class DecimalText
 {
@@ -210,39 +214,73 @@ public static class DecimalText
     }
 
     // ================================================================
-    // TryParse — UTF-8 (widen bytes to chars, delegate to char version)
+    // TryParse — UTF-8 (decode to UTF-16, delegate to the char version)
     // ================================================================
 
     public static bool TryParseDecimal32(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal32 result,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
-    {
-        Span<char> chars = stackalloc char[utf8.Length];
-        for (int i = 0; i < utf8.Length; i++) chars[i] = (char)utf8[i];
-        return TryParseDecimal32(chars, type, out result, rounding);
-    }
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        TryParseUtf8(utf8, type, out result, rounding, TryParseDecimal32);
 
     public static bool TryParseDecimal64(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal64 result,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
-    {
-        Span<char> chars = stackalloc char[utf8.Length];
-        for (int i = 0; i < utf8.Length; i++) chars[i] = (char)utf8[i];
-        return TryParseDecimal64(chars, type, out result, rounding);
-    }
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        TryParseUtf8(utf8, type, out result, rounding, TryParseDecimal64);
 
     public static bool TryParseDecimal128(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal128 result,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
-    {
-        Span<char> chars = stackalloc char[utf8.Length];
-        for (int i = 0; i < utf8.Length; i++) chars[i] = (char)utf8[i];
-        return TryParseDecimal128(chars, type, out result, rounding);
-    }
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        TryParseUtf8(utf8, type, out result, rounding, TryParseDecimal128);
 
     public static bool TryParseDecimal256(ReadOnlySpan<byte> utf8, DecimalType type, out Decimal256 result,
-        DecimalRounding rounding = DecimalRounding.HalfEven)
+        DecimalRounding rounding = DecimalRounding.HalfEven) =>
+        TryParseUtf8(utf8, type, out result, rounding, TryParseDecimal256);
+
+    private delegate bool CharParser<T>(ReadOnlySpan<char> text, DecimalType type, out T result,
+        DecimalRounding rounding);
+
+    // Inputs up to this many bytes decode on the stack; longer ones into a pooled array, so input
+    // size never sets stack depth.
+    private const int StackDecodeChars = 256;
+
+    // The UTF-8 overloads accept exactly what the char overloads accept for the decoded text, as
+    // Encoding.UTF8 decodes it: non-ASCII whitespace is trimmed like any other, and a malformed byte
+    // becomes U+FFFD, which no parse accepts.
+    private static bool TryParseUtf8<T>(ReadOnlySpan<byte> utf8, DecimalType type, out T result,
+        DecimalRounding rounding, CharParser<T> parse)
     {
-        Span<char> chars = stackalloc char[utf8.Length];
-        for (int i = 0; i < utf8.Length; i++) chars[i] = (char)utf8[i];
-        return TryParseDecimal256(chars, type, out result, rounding);
+        // UTF-8 never decodes to more UTF-16 units than it has bytes.
+        char[]? rented = null;
+        Span<char> chars = utf8.Length <= StackDecodeChars
+            ? stackalloc char[StackDecodeChars]
+            : (rented = ArrayPool<char>.Shared.Rent(utf8.Length));
+        try
+        {
+            var length = DecodeUtf8(utf8, chars);
+            return parse(chars.Slice(0, length), type, out result, rounding);
+        }
+        finally
+        {
+            if (rented is not null) ArrayPool<char>.Shared.Return(rented);
+        }
+    }
+
+    private static int DecodeUtf8(ReadOnlySpan<byte> utf8, Span<char> chars)
+    {
+        // ASCII, the usual case: widen directly.
+        var i = 0;
+        for (; i < utf8.Length && utf8[i] < 0x80; i++) chars[i] = (char)utf8[i];
+        if (i == utf8.Length) return i;
+
+#if NETSTANDARD2_0
+        unsafe
+        {
+            fixed (byte* src = utf8)
+            fixed (char* dst = chars)
+            {
+                return Encoding.UTF8.GetChars(src, utf8.Length, dst, chars.Length);
+            }
+        }
+#else
+        return Encoding.UTF8.GetChars(utf8, chars);
+#endif
     }
 
     // ================================================================

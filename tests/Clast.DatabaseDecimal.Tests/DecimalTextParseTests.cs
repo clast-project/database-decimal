@@ -242,6 +242,92 @@ public class DecimalTextParseTests
         Assert.False(DecimalText.TryParseDecimal32(utf8, type, out _));
     }
 
+    // The UTF-8 parsers decode as Encoding.UTF8 does, so they agree with the UTF-16 parsers on the
+    // decoded text: non-ASCII whitespace trims, and malformed bytes (U+FFFD) never parse.
+
+    [Fact]
+    public void Parse_Utf8_TrimsNonAsciiWhitespace_LikeTheCharParser()
+    {
+        var type = DecimalType.Numeric(5, 2);
+        byte[] nbsp = [0x31, 0x2E, 0x35, 0xC2, 0xA0];              // "1.5" + U+00A0
+        byte[] emSpace = [0xE2, 0x80, 0x83, 0x31, 0x2E, 0x35];     // U+2003 + "1.5"
+        Assert.Equal(150, DecimalText.ParseDecimal32(nbsp, type).Mantissa);
+        Assert.Equal(150, DecimalText.ParseDecimal32(emSpace, type).Mantissa);
+    }
+
+    [Fact]
+    public void TryParse_Utf8_RejectsMalformedBytes_ThatWideningWouldTrim()
+    {
+        // A lone 0xA0 or 0x85 widened to a char is NBSP / NEL, which Trim() removes.
+        var type = DecimalType.Numeric(5, 2);
+        Assert.False(DecimalText.TryParseDecimal32([0x31, 0x2E, 0x35, 0xA0], type, out _));
+        Assert.False(DecimalText.TryParseDecimal64([0x85, 0x37], type, out _));
+    }
+
+    [Fact]
+    public void TryParse_Utf8_MatchesTheCharParser_OnDecodedText()
+    {
+        var rng = new Random(20261111);
+        byte[][] pieces =
+        [
+            [0x30], [0x35], [0x39], [0x2D], [0x2E], [0x20], [0x09], [0x65], [0x78],
+            [0xC2, 0xA0], [0xE2, 0x80, 0x83], [0xD9, 0xA3], [0xF0, 0x9F, 0x98, 0x80],
+            [0xA0], [0x85], [0xC2], [0xFF],
+        ];
+        var types = new[] { DecimalType.Numeric(5, 2), DecimalType.Numeric(18, 4), DecimalType.Numeric(38, 10), DecimalType.Numeric(76, 20) };
+        for (var i = 0; i < 20_000; i++)
+        {
+            var bytes = new List<byte>();
+            var n = rng.Next(0, i % 100 == 0 ? 120 : 8); // now and then past the stack buffer
+            for (var k = 0; k < n; k++)
+            {
+                bytes.AddRange(pieces[rng.Next(2) == 0 ? rng.Next(3) : rng.Next(pieces.Length)]);
+            }
+
+            var utf8 = bytes.ToArray();
+            var text = System.Text.Encoding.UTF8.GetString(utf8).AsSpan();
+            var type = types[rng.Next(types.Length)];
+            var hex = BitConverter.ToString(utf8);
+            Assert.True(DecimalText.TryParseDecimal256(utf8, type, out var b256) == DecimalText.TryParseDecimal256(text, type, out var c256) && b256.Equals(c256), $"256 [{hex}]");
+            if (type.Precision <= 38)
+            {
+                Assert.True(DecimalText.TryParseDecimal128(utf8, type, out var b128) == DecimalText.TryParseDecimal128(text, type, out var c128) && b128.Equals(c128), $"128 [{hex}]");
+            }
+
+            if (type.Precision <= 18)
+            {
+                Assert.True(DecimalText.TryParseDecimal64(utf8, type, out var b64) == DecimalText.TryParseDecimal64(text, type, out var c64) && b64.Equals(c64), $"64 [{hex}]");
+            }
+
+            if (type.Precision <= 9)
+            {
+                Assert.True(DecimalText.TryParseDecimal32(utf8, type, out var b32) == DecimalText.TryParseDecimal32(text, type, out var c32) && b32.Equals(c32), $"32 [{hex}]");
+            }
+        }
+    }
+
+    [Fact]
+    public void TryParse_Utf8_LongInput_DoesNotDependOnStackSize()
+    {
+        // Was stackalloc char[utf8.Length]: a 1 MB input overflowed a 1 MB thread stack and killed the
+        // process. Now it parses (well-formed) or fails (padding past any precision) like the char path.
+        var type = DecimalType.Numeric(10, 2);
+        var padded = new byte[1_000_000];
+        padded.AsSpan().Fill(0x20);
+        "12.34"u8.CopyTo(padded.AsSpan(500_000));
+        bool? parsed = null;
+        long mantissa = 0;
+        var thread = new Thread(() =>
+        {
+            parsed = DecimalText.TryParseDecimal64(padded, type, out var value);
+            mantissa = value.Mantissa;
+        }, maxStackSize: 256 * 1024);
+        thread.Start();
+        thread.Join();
+        Assert.True(parsed);
+        Assert.Equal(1234, mantissa);
+    }
+
     [Fact]
     public void Parse_Utf8_Decimal64()
     {
