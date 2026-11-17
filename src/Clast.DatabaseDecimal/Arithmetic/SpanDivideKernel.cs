@@ -12,6 +12,16 @@ namespace Clast.DatabaseDecimal.Arithmetic;
 /// The prescale factor is computed once per call, not per element.
 /// The result span may safely overlap with either input span (when types match).
 /// </summary>
+/// <remarks>
+/// Every public entry point is marked <see cref="MethodImplOptions.NoInlining"/>.
+/// The loop bodies inline <see cref="ScaleHelper.DivideRound(Int128, Int128, DecimalRounding)"/>,
+/// whose 128- and 256-bit operators are each a method call until the JIT inlines
+/// them too. When the JIT also inlined the whole kernel into its caller, as .NET
+/// 10 does from a small benchmark method, the caller's inlining budget ran out
+/// partway through and those operators stayed calls: a 65536-element 128-bit
+/// divide took 1.83 ms there against 0.83 ms compiled on its own. A call per
+/// batch costs nothing by comparison.
+/// </remarks>
 public static class SpanDivideKernel
 {
     // ================================================================
@@ -19,6 +29,7 @@ public static class SpanDivideKernel
     // ================================================================
 
     /// <summary>32÷32 → 64 bit. Prescales dividend to 64-bit before dividing.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         ReadOnlySpan<int> left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
@@ -42,6 +53,7 @@ public static class SpanDivideKernel
     }
 
     /// <summary>64÷64 → 128 bit. Prescales dividend to 128-bit before dividing.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -65,6 +77,7 @@ public static class SpanDivideKernel
     }
 
     /// <summary>128÷128 → 256 bit. Prescales dividend to 256-bit before dividing.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void DivideWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -92,6 +105,7 @@ public static class SpanDivideKernel
     // ================================================================
 
     /// <summary>128÷128 → 128 bit. Prescales within 128-bit.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -115,6 +129,7 @@ public static class SpanDivideKernel
     }
 
     /// <summary>256÷256 → 256 bit. Prescales within 256-bit.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -190,6 +205,7 @@ public static class SpanDivideKernel
     /// <returns>How many computed results were out of range.</returns>
     /// <exception cref="DivideByZeroException">A valid row had a zero divisor.</exception>
     /// <exception cref="OverflowException">A prescaled dividend overflowed the mantissa width.</exception>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Divide(
         ReadOnlySpan<int> left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
@@ -227,6 +243,7 @@ public static class SpanDivideKernel
     }
 
     /// <inheritdoc cref="Divide(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{long}, DecimalType, ReadOnlySpan{ulong}, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Divide(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -264,6 +281,7 @@ public static class SpanDivideKernel
     }
 
     /// <inheritdoc cref="Divide(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{long}, DecimalType, ReadOnlySpan{ulong}, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int DivideWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -301,6 +319,7 @@ public static class SpanDivideKernel
     }
 
     /// <inheritdoc cref="Divide(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{long}, DecimalType, ReadOnlySpan{ulong}, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Divide(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -338,6 +357,7 @@ public static class SpanDivideKernel
     }
 
     /// <inheritdoc cref="Divide(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{long}, DecimalType, ReadOnlySpan{ulong}, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Divide(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -378,6 +398,7 @@ public static class SpanDivideKernel
     // Divide — column / scalar (broadcast)
     // ================================================================
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         ReadOnlySpan<int> left, DecimalType leftType,
         int right, DecimalType rightType,
@@ -401,6 +422,7 @@ public static class SpanDivideKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         ReadOnlySpan<long> left, DecimalType leftType,
         long right, DecimalType rightType,
@@ -424,6 +446,7 @@ public static class SpanDivideKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,
@@ -446,6 +469,7 @@ public static class SpanDivideKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         Int256 right, DecimalType rightType,
@@ -472,6 +496,7 @@ public static class SpanDivideKernel
     // Divide — scalar / column (broadcast, non-commutative)
     // ================================================================
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         int left, DecimalType leftType,
         ReadOnlySpan<int> right, DecimalType rightType,
@@ -491,6 +516,7 @@ public static class SpanDivideKernel
             DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         long left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -510,6 +536,7 @@ public static class SpanDivideKernel
             DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         Int128 left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -529,6 +556,7 @@ public static class SpanDivideKernel
             DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Divide(
         Int256 left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,

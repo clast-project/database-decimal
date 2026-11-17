@@ -1,6 +1,7 @@
 // Copyright (c) clast-project. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
+using System.Numerics;
 using Clast.DatabaseDecimal.Arithmetic;
 using Clast.DatabaseDecimal.Text;
 using Clast.DatabaseDecimal.Values;
@@ -181,6 +182,55 @@ public class RoundingModeTests
         Assert.Equal(1, ScaleHelper.DivideRound(int.MinValue, int.MinValue, rounding));
         Assert.Equal(Int128.One, ScaleHelper.DivideRound(Int128.MinValue, Int128.MinValue, rounding));
         Assert.Equal(Int256.One, ScaleHelper.DivideRound(Int256.MinValue, Int256.MinValue, rounding));
+    }
+
+    /// <summary>
+    /// The wide overloads recover the remainder as dividend − quotient × divisor
+    /// rather than with <c>%</c>. The small-operand cross-check above cannot see
+    /// a fault in that at the limb edges, so this runs the full-width corpus
+    /// against <see cref="BigInteger"/>, rounding by doubling the remainder.
+    /// </summary>
+    [Theory]
+    [InlineData(128, DecimalRounding.HalfEven)]
+    [InlineData(128, DecimalRounding.HalfUp)]
+    [InlineData(256, DecimalRounding.HalfEven)]
+    [InlineData(256, DecimalRounding.HalfUp)]
+    public void DivideRound_FullWidth_MatchesBigInteger(int bits, DecimalRounding rounding)
+    {
+        IReadOnlyList<BigInteger> corpus = NumericOracle.SignedValues(bits);
+        BigInteger min = -(BigInteger.One << (bits - 1));
+
+        foreach (BigInteger dividend in corpus)
+        {
+            foreach (BigInteger divisor in corpus)
+            {
+                if (divisor.IsZero || (dividend == min && divisor == BigInteger.MinusOne)) continue;
+
+                BigInteger expected = RoundedQuotient(dividend, divisor, rounding);
+                if (bits == 128)
+                {
+                    Int128 actual = ScaleHelper.DivideRound(
+                        NumericOracle.ToInt128(dividend), NumericOracle.ToInt128(divisor), rounding);
+                    Assert.True(expected == NumericOracle.ToBig(actual), $"{dividend} / {divisor}: expected {expected}, got {NumericOracle.ToBig(actual)}");
+                }
+                else
+                {
+                    Int256 actual = ScaleHelper.DivideRound(
+                        NumericOracle.ToInt256(dividend), NumericOracle.ToInt256(divisor), rounding);
+                    Assert.True(expected == NumericOracle.ToBig(actual), $"{dividend} / {divisor}: expected {expected}, got {NumericOracle.ToBig(actual)}");
+                }
+            }
+        }
+    }
+
+    private static BigInteger RoundedQuotient(BigInteger dividend, BigInteger divisor, DecimalRounding rounding)
+    {
+        BigInteger quotient = BigInteger.DivRem(dividend, divisor, out BigInteger remainder);
+        int vsHalf = (BigInteger.Abs(remainder) * 2).CompareTo(BigInteger.Abs(divisor));
+        bool away = vsHalf > 0
+            || (vsHalf == 0 && (rounding == DecimalRounding.HalfUp || !quotient.IsEven));
+        if (!away) return quotient;
+        return quotient + ((dividend.Sign < 0) != (divisor.Sign < 0) ? -1 : 1);
     }
 
     // ================================================================
