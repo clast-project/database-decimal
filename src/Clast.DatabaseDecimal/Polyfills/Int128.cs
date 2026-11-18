@@ -2,6 +2,8 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 #if NETSTANDARD2_0
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace System;
@@ -293,6 +295,72 @@ public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>, ICompar
     // Reinterpret cast between signed and unsigned 128-bit
     public static explicit operator UInt128(Int128 value) => new(value._upper, value._lower);
     public static explicit operator Int128(UInt128 value) => new(value._upper, value._lower);
+
+    // --- Parse ---
+
+    // The BCL's overload set, less the UTF-8 ones: IUtf8SpanParsable is a .NET 8
+    // interface. See Int128Parsing for the styles supported.
+
+    public static Int128 Parse(string s) => Parse(s, NumberStyles.Integer, null);
+
+    public static Int128 Parse(string s, NumberStyles style) => Parse(s, style, null);
+
+    public static Int128 Parse(string s, IFormatProvider? provider) => Parse(s, NumberStyles.Integer, provider);
+
+    /// <remarks>Supports <see cref="NumberStyles.Integer"/>, <see cref="NumberStyles.HexNumber"/> and their subsets; any other valid style throws <see cref="NotSupportedException"/>.</remarks>
+    public static Int128 Parse(string s, NumberStyles style, IFormatProvider? provider)
+    {
+        if (s is null) throw new ArgumentNullException(nameof(s));
+        return Parse(s.AsSpan(), style, provider);
+    }
+
+    public static Int128 Parse(ReadOnlySpan<char> s, IFormatProvider? provider) => Parse(s, NumberStyles.Integer, provider);
+
+    /// <remarks>Supports <see cref="NumberStyles.Integer"/>, <see cref="NumberStyles.HexNumber"/> and their subsets; any other valid style throws <see cref="NotSupportedException"/>.</remarks>
+    public static Int128 Parse(ReadOnlySpan<char> s, NumberStyles style = NumberStyles.Integer, IFormatProvider? provider = null)
+    {
+        Int128Parsing.ValidateStyle(style);
+        return Int128Parsing.Parse(s, style, provider, signed: true, out UInt128 bits) switch
+        {
+            Int128Parsing.Status.Ok => (Int128)bits,
+            Int128Parsing.Status.Overflow => throw Int128Parsing.OverflowError("an Int128"),
+            _ => throw Int128Parsing.FormatError(s),
+        };
+    }
+
+    public static bool TryParse([NotNullWhen(true)] string? s, out Int128 result) =>
+        TryParse(s, NumberStyles.Integer, null, out result);
+
+    public static bool TryParse(ReadOnlySpan<char> s, out Int128 result) =>
+        TryParse(s, NumberStyles.Integer, null, out result);
+
+    public static bool TryParse([NotNullWhen(true)] string? s, IFormatProvider? provider, out Int128 result) =>
+        TryParse(s, NumberStyles.Integer, provider, out result);
+
+    public static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, out Int128 result) =>
+        TryParse(s, NumberStyles.Integer, provider, out result);
+
+    /// <remarks>Throws <see cref="NotSupportedException"/> for a style <c>Parse</c> does not support, rather than returning <see langword="false"/>.</remarks>
+    public static bool TryParse([NotNullWhen(true)] string? s, NumberStyles style, IFormatProvider? provider, out Int128 result)
+    {
+        // The style is checked before the null test, as in the BCL.
+        Int128Parsing.ValidateStyle(style);
+        if (s is null)
+        {
+            result = default;
+            return false;
+        }
+        return TryParse(s.AsSpan(), style, provider, out result);
+    }
+
+    /// <remarks>Throws <see cref="NotSupportedException"/> for a style <c>Parse</c> does not support, rather than returning <see langword="false"/>.</remarks>
+    public static bool TryParse(ReadOnlySpan<char> s, NumberStyles style, IFormatProvider? provider, out Int128 result)
+    {
+        Int128Parsing.ValidateStyle(style);
+        bool ok = Int128Parsing.Parse(s, style, provider, signed: true, out UInt128 bits) == Int128Parsing.Status.Ok;
+        result = (Int128)bits;
+        return ok;
+    }
 
     // --- ToString ---
 
