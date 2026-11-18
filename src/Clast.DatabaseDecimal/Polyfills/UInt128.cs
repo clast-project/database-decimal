@@ -12,7 +12,7 @@ namespace System;
 /// bitwise, shift, conversion). Stored as a pair of 64-bit halves.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct UInt128 : IEquatable<UInt128>, IComparable<UInt128>
+public readonly struct UInt128 : IEquatable<UInt128>, IComparable<UInt128>, IComparable, IFormattable
 {
     internal readonly ulong _lower;
     internal readonly ulong _upper;
@@ -41,6 +41,30 @@ public readonly struct UInt128 : IEquatable<UInt128>, IComparable<UInt128>
         int cmp = _upper.CompareTo(other._upper);
         return cmp != 0 ? cmp : _lower.CompareTo(other._lower);
     }
+
+    public int CompareTo(object? obj)
+    {
+        if (obj is UInt128 other) return CompareTo(other);
+        if (obj is null) return 1;
+        throw new ArgumentException("Object must be of type UInt128.", nameof(obj));
+    }
+
+    // --- Helpers ---
+
+    // Return types follow the BCL: LeadingZeroCount and PopCount return UInt128
+    // there, so returning int here would let code compile downlevel that fails
+    // on net8.0.
+
+    public static int Sign(UInt128 value) => (value._upper | value._lower) == 0 ? 0 : 1;
+
+    public static UInt128 Min(UInt128 x, UInt128 y) => x <= y ? x : y;
+
+    public static UInt128 Max(UInt128 x, UInt128 y) => x >= y ? x : y;
+
+    public static UInt128 LeadingZeroCount(UInt128 value) => (UInt128)(ulong)LeadingZeroCountInt32(value);
+
+    public static UInt128 PopCount(UInt128 value) =>
+        (UInt128)(ulong)(MathCompat.PopCount(value._upper) + MathCompat.PopCount(value._lower));
 
     public static bool operator ==(UInt128 left, UInt128 right) =>
         left._lower == right._lower && left._upper == right._upper;
@@ -214,11 +238,17 @@ public readonly struct UInt128 : IEquatable<UInt128>, IComparable<UInt128>
         return buffer.Slice(pos).ToString();
     }
 
-    public string ToString(string? format, IFormatProvider? formatProvider) => ToString();
+    public string ToString(string? format) => ToString(format, null);
+
+    public string ToString(IFormatProvider? provider) => ToString(null, provider);
+
+    /// <remarks>Supports the G, D, R and X standard formats; any other format throws <see cref="FormatException"/>.</remarks>
+    public string ToString(string? format, IFormatProvider? formatProvider) =>
+        Int128Formatting.Format(false, this, this, format, formatProvider);
 
     // --- DivRem via binary long division ---
 
-    internal static (UInt128 Quotient, UInt128 Remainder) DivRem(UInt128 left, UInt128 right)
+    public static (UInt128 Quotient, UInt128 Remainder) DivRem(UInt128 left, UInt128 right)
     {
         if (right == Zero) throw new DivideByZeroException();
         if (left < right) return (Zero, left);
@@ -229,7 +259,7 @@ public readonly struct UInt128 : IEquatable<UInt128>, IComparable<UInt128>
             return (new UInt128(0, left._lower / right._lower),
                     new UInt128(0, left._lower % right._lower));
 
-        int shift = LeadingZeroCount(right) - LeadingZeroCount(left);
+        int shift = LeadingZeroCountInt32(right) - LeadingZeroCountInt32(left);
         UInt128 remainder = left;
         UInt128 quotient = Zero;
         UInt128 current = right << shift;
@@ -248,7 +278,7 @@ public readonly struct UInt128 : IEquatable<UInt128>, IComparable<UInt128>
         return (quotient, remainder);
     }
 
-    internal static int LeadingZeroCount(UInt128 value)
+    private static int LeadingZeroCountInt32(UInt128 value)
     {
         if (value._upper != 0) return MathCompat.LeadingZeroCount(value._upper);
         return 64 + MathCompat.LeadingZeroCount(value._lower);

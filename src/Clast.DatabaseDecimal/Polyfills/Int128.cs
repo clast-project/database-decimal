@@ -12,7 +12,7 @@ namespace System;
 /// in a UInt128, matching BCL semantics.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>
+public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>, IComparable, IFormattable
 {
     internal readonly ulong _lower;
     internal readonly ulong _upper;
@@ -33,9 +33,32 @@ public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>
 
     // --- Helpers ---
 
-    private static bool IsNegative(Int128 value) => (long)value._upper < 0;
+    // Return types follow the BCL, not convenience: LeadingZeroCount and PopCount
+    // return Int128 there, so returning int here would let `int n =
+    // Int128.PopCount(x)` compile downlevel and fail on net8.0.
+
+    public static bool IsNegative(Int128 value) => (long)value._upper < 0;
 
     public static Int128 Abs(Int128 value) => IsNegative(value) ? -value : value;
+
+    public static int Sign(Int128 value) =>
+        IsNegative(value) ? -1 : (value._upper | value._lower) == 0 ? 0 : 1;
+
+    public static Int128 Min(Int128 x, Int128 y) => x <= y ? x : y;
+
+    public static Int128 Max(Int128 x, Int128 y) => x >= y ? x : y;
+
+    public static (Int128 Quotient, Int128 Remainder) DivRem(Int128 left, Int128 right)
+    {
+        Int128 quotient = left / right;
+        return (quotient, left - quotient * right);
+    }
+
+    public static Int128 LeadingZeroCount(Int128 value) =>
+        (Int128)UInt128.LeadingZeroCount((UInt128)value);
+
+    public static Int128 PopCount(Int128 value) =>
+        (Int128)UInt128.PopCount((UInt128)value);
 
     // --- Equality / comparison ---
 
@@ -49,6 +72,13 @@ public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>
         long lu = (long)_upper, ru = (long)other._upper;
         if (lu != ru) return lu < ru ? -1 : 1;
         return _lower.CompareTo(other._lower);
+    }
+
+    public int CompareTo(object? obj)
+    {
+        if (obj is Int128 other) return CompareTo(other);
+        if (obj is null) return 1;
+        throw new ArgumentException("Object must be of type Int128.", nameof(obj));
     }
 
     public static bool operator ==(Int128 left, Int128 right) =>
@@ -266,17 +296,20 @@ public readonly struct Int128 : IEquatable<Int128>, IComparable<Int128>
 
     // --- ToString ---
 
-    public override string ToString()
-    {
-        if (IsNegative(this))
-        {
-            // Take absolute value via UInt128 to handle MinValue cleanly.
-            UInt128 abs = ~(UInt128)this + UInt128.One;
-            return "-" + abs.ToString();
-        }
-        return ((UInt128)this).ToString();
-    }
+    // Culture-sensitive, as the BCL's is: the negative sign comes from the
+    // current culture, which is U+2212 rather than '-' in sv-SE, for one.
+    public override string ToString() => ToString(null, null);
 
-    public string ToString(string? format, IFormatProvider? formatProvider) => ToString();
+    public string ToString(string? format) => ToString(format, null);
+
+    public string ToString(IFormatProvider? provider) => ToString(null, provider);
+
+    /// <remarks>Supports the G, D, R and X standard formats; any other format throws <see cref="FormatException"/>.</remarks>
+    public string ToString(string? format, IFormatProvider? formatProvider)
+    {
+        bool negative = IsNegative(this);
+        UInt128 magnitude = negative ? ~(UInt128)this + UInt128.One : (UInt128)this;
+        return Int128Formatting.Format(negative, magnitude, (UInt128)this, format, formatProvider);
+    }
 }
 #endif
