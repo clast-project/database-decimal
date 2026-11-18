@@ -239,6 +239,14 @@ public class Int128ParseTests
         Assert.Equal((Int128)(-5), Int128.Parse("−5", Minus));
         Assert.Equal((Int128)(-5), Int128.Parse("-5", Minus));
         Assert.Equal((Int128)(-5), Int128.Parse("-5".AsSpan(), NumberStyles.Integer, Minus));
+
+        // The hyphen is tried before the provider's positive sign, so it wins
+        // even when the positive sign is itself "-". Odd, but it is what the
+        // BCL does for Int128, int and long alike.
+        CultureInfo hyphenIsPositive = Culture(negative: "−", positive: "-");
+        Assert.Equal((Int128)(-5), Int128.Parse("-5", hyphenIsPositive));
+        Assert.Equal(UInt128.Zero, UInt128.Parse("-0", hyphenIsPositive));
+        Assert.Throws<OverflowException>(() => UInt128.Parse("-5", hyphenIsPositive));
     }
 
     [Fact]
