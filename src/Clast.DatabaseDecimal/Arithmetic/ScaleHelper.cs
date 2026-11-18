@@ -226,12 +226,22 @@ public static class ScaleHelper
     /// deciding the direction of an exact midpoint.
     /// </summary>
     /// <remarks>
-    /// Written as two guarded increments rather than one boolean and an early
-    /// return. That reads as a wash, but it is a third faster in a batch loop:
-    /// the JIT will not inline the boolean form, and an out-of-line call here
-    /// costs several times the arithmetic it performs, because each element then
-    /// marshals 128-bit operands instead of keeping them in registers. Measured
-    /// on a 65536-element divide, 2.69 ms against 1.86 ms.
+    /// The remainder is recovered from the quotient rather than with <c>%</c>.
+    /// <c>%</c> on a 128-bit integer performs the whole software division again,
+    /// so writing both operators costs two divisions per element where one and a
+    /// multiply will do; the product cannot overflow, because
+    /// |quotient × divisor| ≤ |dividend|. Measured on a 65536-element divide,
+    /// that alone takes net8.0 from 2.83 ms to 2.06 ms.
+    /// <para>
+    /// How fast this runs in a batch loop depends less on its own shape than on
+    /// the JIT's inlining budget for the method that contains the loop. Every
+    /// operator on <see cref="Int128"/> is a method call until inlined, and this
+    /// body holds a dozen of them. If the budget runs out — for instance because
+    /// the kernel itself was inlined into its caller — they stay calls, and the
+    /// loop runs at nearly twice the time. The span kernels are marked
+    /// <see cref="MethodImplOptions.NoInlining"/> for that reason; see
+    /// <see cref="SpanDivideKernel"/>.
+    /// </para>
     /// <para>
     /// There is no early return for a zero remainder: it would only add a branch
     /// on the common path. A zero remainder yields absRemainder 0, which is
@@ -243,7 +253,7 @@ public static class ScaleHelper
     internal static Int128 DivideRound(Int128 dividend, Int128 divisor, DecimalRounding rounding)
     {
         Int128 quotient = dividend / divisor;
-        Int128 remainder = dividend % divisor;
+        Int128 remainder = unchecked(dividend - quotient * divisor);
         UInt128 absRemainder = UnsignedAbs(remainder);
         UInt128 absDivisor = UnsignedAbs(divisor);
         UInt128 halfDivisor = absDivisor >> 1;
@@ -262,11 +272,15 @@ public static class ScaleHelper
     /// Integer division rounded to nearest, with <paramref name="rounding"/>
     /// deciding the direction of an exact midpoint.
     /// </summary>
-    /// <remarks>Shaped like the 128-bit overload, and for the same reason.</remarks>
+    /// <remarks>
+    /// Shaped like the 128-bit overload, and for the same reasons: <c>%</c> on
+    /// <see cref="Int256"/> repeats the division, so the remainder is recovered
+    /// from the quotient instead.
+    /// </remarks>
     internal static Int256 DivideRound(Int256 dividend, Int256 divisor, DecimalRounding rounding)
     {
         Int256 quotient = dividend / divisor;
-        Int256 remainder = dividend % divisor;
+        Int256 remainder = unchecked(dividend - quotient * divisor);
         UInt256 absRemainder = UnsignedAbs(remainder);
         UInt256 absDivisor = UnsignedAbs(divisor);
         UInt256 halfDivisor = absDivisor >> 1;

@@ -89,4 +89,5 @@ public class ReleaseBaselineBenchmarks
     // --- divide: the rounding mode applies on nearly every element ---
     [Benchmark] public void Div32To64() => SpanDivideKernel.Divide(_i32L, T32S2, _i32R, T32S2, _i64Out, T64S4);
     [Benchmark] public void Div128_SameWidth() => SpanDivideKernel.Divide(_i128L, T128S2, _i128R, T128S2, _i128Out, T128S4);
+    [Benchmark] public void Div256_SameWidth() => SpanDivideKernel.Divide(_i256L, T256S2, _i256R, T256S2, _i256Out, T256S4);
 }
