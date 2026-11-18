@@ -328,7 +328,20 @@ public readonly struct UInt256 : IEquatable<UInt256>, IComparable<UInt256>
     }
 
     // ----------------------------------------------------------------
-    // Division via binary long division
+    // Division
+    //
+    // The general case is binary long division: one quotient bit per pass,
+    // each pass a 256-bit shift, compare and subtract. Its cost follows the
+    // length of the quotient, not of the operands, which is the wrong shape for
+    // this package's commonest division — a rescale, dividing a wide mantissa
+    // by a small power of ten, whose quotient is nearly as long as the
+    // dividend. Dropping two digits from a 77-bit mantissa took about seventy
+    // passes per element.
+    //
+    // A divisor that fits in 64 bits — every power of ten up to 10^19 — instead
+    // goes through schoolbook division by 64-bit limbs: four 128-by-64 steps
+    // whatever the quotient's length. A dividend and divisor that both fit in
+    // 128 bits go to UInt128, which is the runtime's on .NET 8 and later.
     // ----------------------------------------------------------------
 
     internal static (UInt256 Quotient, UInt256 Remainder) DivRem(UInt256 left, UInt256 right)
@@ -339,6 +352,20 @@ public readonly struct UInt256 : IEquatable<UInt256>, IComparable<UInt256>
             return (Zero, left);
         if (left == right)
             return (One, Zero);
+
+        if (right._upper == UInt128.Zero)
+        {
+            UInt128 divisor = right._lower;
+            if ((divisor >> 64) == UInt128.Zero)
+                return DivRemBy64(left, (ulong)divisor);
+
+            if (left._upper == UInt128.Zero)
+            {
+                UInt128 quotient128 = left._lower / divisor;
+                return (new UInt256(UInt128.Zero, quotient128),
+                        new UInt256(UInt128.Zero, left._lower - quotient128 * divisor));
+            }
+        }
 
         int shift = LeadingZeroCount(right) - LeadingZeroCount(left);
         UInt256 remainder = left;
@@ -357,5 +384,102 @@ public readonly struct UInt256 : IEquatable<UInt256>, IComparable<UInt256>
         }
 
         return (quotient, remainder);
+    }
+
+    /// <summary>
+    /// Schoolbook division by a single 64-bit limb, most significant limb first.
+    /// The running remainder stays below <paramref name="divisor"/>, so each
+    /// step's quotient digit fits in 64 bits.
+    /// </summary>
+    private static (UInt256 Quotient, UInt256 Remainder) DivRemBy64(UInt256 left, ulong divisor)
+    {
+        ulong remainder = 0;
+        ulong q3 = DivRemStep((ulong)(left._upper >> 64), divisor, ref remainder);
+        ulong q2 = DivRemStep((ulong)left._upper, divisor, ref remainder);
+        ulong q1 = DivRemStep((ulong)(left._lower >> 64), divisor, ref remainder);
+        ulong q0 = DivRemStep((ulong)left._lower, divisor, ref remainder);
+
+        return (new UInt256(new UInt128(q3, q2), new UInt128(q1, q0)),
+                new UInt256(UInt128.Zero, new UInt128(0, remainder)));
+    }
+
+    /// <summary>
+    /// Divides <c>remainder:limb</c> by <paramref name="divisor"/>, replacing
+    /// <paramref name="remainder"/> with the new remainder.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong DivRemStep(ulong limb, ulong divisor, ref ulong remainder)
+    {
+        // Leading zero limbs, and every limb of a dividend below 2^64, skip the
+        // 128-by-64 step: a single hardware division does.
+        if (remainder == 0)
+        {
+            ulong quotient = limb / divisor;
+            remainder = limb - quotient * divisor;
+            return quotient;
+        }
+
+        return DivRem128By64(remainder, limb, divisor, out remainder);
+    }
+
+    /// <summary>
+    /// Divides the 128-bit value <c>high:low</c> by <paramref name="divisor"/>,
+    /// which must exceed <paramref name="high"/> so the quotient fits in 64 bits.
+    /// </summary>
+    /// <remarks>
+    /// Knuth's Algorithm D specialised to a two-digit divisor in base 2^32, as
+    /// <c>divlu</c> in Hacker's Delight (2nd ed., §9-4). The divisor is
+    /// normalised so its top bit is set; each 32-bit quotient digit is then
+    /// estimated from the top divisor digit and is at most two too large, which
+    /// the correction loops repair. Only 64-bit arithmetic is used, so this is
+    /// the same code on every target — the netstandard2.0 UInt128 polyfill
+    /// divides one bit at a time and would gain nothing from delegating to it.
+    /// </remarks>
+    internal static ulong DivRem128By64(ulong high, ulong low, ulong divisor, out ulong remainder)
+    {
+        const ulong Base = 1UL << 32;
+        const ulong DigitMask = Base - 1;
+
+        unchecked
+        {
+            int shift = MathCompat.LeadingZeroCount(divisor);
+            divisor <<= shift;
+            ulong divisorHigh = divisor >> 32;
+            ulong divisorLow = divisor & DigitMask;
+
+            // Shift the dividend by the same amount. A shift of 64 would be
+            // masked to 0 by C#, hence the guard on the carried-in bits.
+            ulong numerator32 = shift == 0 ? high : (high << shift) | (low >> (64 - shift));
+            ulong numerator10 = low << shift;
+            ulong numerator1 = numerator10 >> 32;
+            ulong numerator0 = numerator10 & DigitMask;
+
+            // First quotient digit. The q1 >= Base test short-circuits before
+            // q1 * divisorLow could overflow; rhat stays below Base whenever the
+            // product test runs, so Base * rhat + numerator1 cannot overflow.
+            ulong q1 = numerator32 / divisorHigh;
+            ulong rhat = numerator32 - q1 * divisorHigh;
+            while (q1 >= Base || q1 * divisorLow > Base * rhat + numerator1)
+            {
+                q1--;
+                rhat += divisorHigh;
+                if (rhat >= Base) break;
+            }
+
+            // Wraps modulo 2^64, but the true value is below the divisor.
+            ulong numerator21 = numerator32 * Base + numerator1 - q1 * divisor;
+
+            ulong q0 = numerator21 / divisorHigh;
+            rhat = numerator21 - q0 * divisorHigh;
+            while (q0 >= Base || q0 * divisorLow > Base * rhat + numerator0)
+            {
+                q0--;
+                rhat += divisorHigh;
+                if (rhat >= Base) break;
+            }
+
+            remainder = (numerator21 * Base + numerator0 - q0 * divisor) >> shift;
+            return q1 * Base + q0;
+        }
     }
 }
