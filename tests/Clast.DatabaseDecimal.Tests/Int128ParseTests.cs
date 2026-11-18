@@ -208,8 +208,12 @@ public class Int128ParseTests
         Assert.Throws<ArgumentException>("style", () => Int128.Parse("1", (NumberStyles)style));
         Assert.Throws<ArgumentException>("style", () => UInt128.TryParse("1", (NumberStyles)style, null, out _));
 
-        // The style is checked before the input, so even a null string throws.
+        // TryParse checks the style before the input, so even a null string
+        // throws for it. Parse is the other way round: a null string is
+        // reported first, whatever the style. Both orders are the BCL's.
         Assert.Throws<ArgumentException>("style", () => Int128.TryParse((string?)null, (NumberStyles)style, null, out _));
+        Assert.Throws<ArgumentNullException>("s", () => Int128.Parse((string)null!, (NumberStyles)style, null));
+        Assert.Throws<ArgumentNullException>("s", () => UInt128.Parse((string)null!, (NumberStyles)style));
     }
 
     // --- Provider ---

@@ -44,6 +44,10 @@ internal static class Int128Parsing
     private const NumberStyles AllDefinedStyles =
         NumberStyles.Any | NumberStyles.AllowHexSpecifier | AllowBinarySpecifier;
 
+    // UInt128.MaxValue / 10, spelled out. Computing it would cost every parse a
+    // 125-step long division: a 128-bit dividend misses DivRem's 64-bit fast path.
+    private static UInt128 TenthOfMax => new(0x1999_9999_9999_9999, 0x9999_9999_9999_9999);
+
     internal enum Status { Ok, Format, Overflow }
 
     /// <summary>
@@ -130,7 +134,7 @@ internal static class Int128Parsing
         // accumulator against that before each step rather than after the
         // multiply has already wrapped.
         UInt128 limit = signed ? (negative ? (UInt128)Int128.MinValue : (UInt128)Int128.MaxValue) : UInt128.MaxValue;
-        UInt128 tenthOfMax = UInt128.MaxValue / 10UL;
+        UInt128 tenthOfMax = TenthOfMax;
         UInt128 value = UInt128.Zero;
         bool overflow = false;
 
