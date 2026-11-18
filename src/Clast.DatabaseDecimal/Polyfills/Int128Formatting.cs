@@ -37,14 +37,17 @@ internal static class Int128Formatting
             specifier = format![0];
             if (format.Length > 1)
             {
-                // A standard format string is one letter and at most nine digits;
-                // anything else is a custom pattern, which is not supported.
-                if (format.Length > 10) throw Unsupported(format);
+                // A standard format string is one letter and a precision. The BCL
+                // bounds the precision's value at 999,999,999, not the number of
+                // characters spelling it, so "D0000000001" is D1. Anything with
+                // a non-digit after the letter is a custom pattern, which is not
+                // supported.
                 precision = 0;
                 for (int i = 1; i < format.Length; i++)
                 {
                     char c = format[i];
                     if (c < '0' || c > '9') throw Unsupported(format);
+                    if (precision >= 100_000_000) throw new FormatException("Format specifier precision exceeds 999,999,999.");
                     precision = precision * 10 + (c - '0');
                 }
             }
@@ -53,7 +56,7 @@ internal static class Int128Formatting
         switch (specifier)
         {
             case 'D': case 'd':
-                return Decimal(negative, magnitude, precision, provider);
+                return Decimal(negative, magnitude.ToString(), precision, provider);
             case 'G': case 'g':
             case 'R': case 'r':
                 // The BCL treats R on an integer as G, precision included: R5
@@ -70,9 +73,8 @@ internal static class Int128Formatting
         new($"Format specifier '{format}' is not supported by the netstandard2.0 Int128/UInt128 polyfill, " +
             "which implements only G, D, R and X.");
 
-    private static string Decimal(bool negative, UInt128 magnitude, int precision, IFormatProvider? provider)
+    private static string Decimal(bool negative, string digits, int precision, IFormatProvider? provider)
     {
-        string digits = magnitude.ToString();
         if (precision > digits.Length) digits = digits.PadLeft(precision, '0');
         return negative ? NumberFormatInfo.GetInstance(provider).NegativeSign + digits : digits;
     }
@@ -85,7 +87,7 @@ internal static class Int128Formatting
         // just the integer. Only a precision that cuts digits off switches to
         // scientific notation.
         if (precision <= 0 || precision >= digits.Length)
-            return Decimal(negative, magnitude, -1, provider);
+            return Decimal(negative, digits, -1, provider);
 
         NumberFormatInfo info = NumberFormatInfo.GetInstance(provider);
         int exponent = digits.Length - 1;

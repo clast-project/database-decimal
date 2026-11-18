@@ -22,7 +22,22 @@ namespace Clast.DatabaseDecimal.Tests;
 /// </remarks>
 public class Int128SurfaceTests
 {
-    private static readonly CultureInfo Swedish = new("sv-SE");
+    // A culture built by hand rather than looked up. A real culture's signs come
+    // from the platform's globalization data, which disagrees with itself:
+    // sv-SE's negative sign is U+2212 under ICU and '-' under Windows NLS, which
+    // is what net472 uses. These values cannot come from any platform, so a test
+    // that sees them knows the provider was honoured. Multi-character signs also
+    // check that nothing assumes a sign is one char.
+    private static readonly CultureInfo Odd = CreateOddCulture();
+
+    private static CultureInfo CreateOddCulture()
+    {
+        var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        culture.NumberFormat.NegativeSign = "neg~";
+        culture.NumberFormat.PositiveSign = "pos~";
+        culture.NumberFormat.NumberDecimalSeparator = "_";
+        return culture;
+    }
 
     // --- Return types ---
 
@@ -165,6 +180,23 @@ public class Int128SurfaceTests
         Assert.Equal(expected, UInt128.MaxValue.ToString(format, CultureInfo.InvariantCulture));
     }
 
+    [Theory]
+    [InlineData("D0000000001", "-12")]          // leading zeroes in the precision are fine;
+    [InlineData("D00000000000000005", "-00012")] // the BCL bounds its value, not its length
+    [InlineData("X000000000000004", "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF4")]
+    public void PrecisionMayHaveLeadingZeroes(string format, string expected)
+    {
+        Assert.Equal(expected, ((Int128)(-12)).ToString(format, CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void PrecisionAboveTheBclLimitThrows()
+    {
+        // 999,999,999 is the BCL's limit, and it is a FormatException there too.
+        Assert.Throws<FormatException>(() => Int128.One.ToString("D1000000000", CultureInfo.InvariantCulture));
+        Assert.Throws<FormatException>(() => UInt128.One.ToString("X9999999999", CultureInfo.InvariantCulture));
+    }
+
     [Fact]
     public void FormattingCarriesIntoTheNextPowerOfTen()
     {
@@ -177,11 +209,12 @@ public class Int128SurfaceTests
     [Fact]
     public void FormattingHonoursTheProvider()
     {
-        // sv-SE uses U+2212 MINUS SIGN and a decimal comma, so neither can be
-        // mistaken for the invariant output.
+        // Scientific G draws on all three: the negative sign, the decimal
+        // separator, and the positive sign in front of the exponent.
         Int128 value = -1234567;
-        Assert.Equal("−1234567", value.ToString(Swedish));
-        Assert.Equal("−1,23E+06", value.ToString("G3", Swedish));
+        Assert.Equal("neg~1234567", value.ToString(Odd));
+        Assert.Equal("neg~1_23Epos~06", value.ToString("G3", Odd));
+        Assert.Equal("1_23Epos~06", ((UInt128)1234567UL).ToString("G3", Odd));
     }
 
     [Fact]
@@ -190,8 +223,8 @@ public class Int128SurfaceTests
         CultureInfo saved = CultureInfo.CurrentCulture;
         try
         {
-            CultureInfo.CurrentCulture = Swedish;
-            Assert.Equal("−42", ((Int128)(-42)).ToString());
+            CultureInfo.CurrentCulture = Odd;
+            Assert.Equal("neg~42", ((Int128)(-42)).ToString());
         }
         finally
         {
