@@ -11,6 +11,11 @@ namespace Clast.DatabaseDecimal.Arithmetic;
 /// Both operands are rescaled to the result scale before integer modulus.
 /// The result span may safely overlap with either input span.
 /// </summary>
+/// <remarks>
+/// The entry points that take or return 128- or 256-bit spans are marked
+/// <see cref="MethodImplOptions.NoInlining"/>, for the reason given on
+/// <see cref="SpanDivideKernel"/>.
+/// </remarks>
 public static class SpanModulusKernel
 {
     // ================================================================
@@ -73,6 +78,7 @@ public static class SpanModulusKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Modulus(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -101,6 +107,7 @@ public static class SpanModulusKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Modulus(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -153,6 +160,7 @@ public static class SpanModulusKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void ModulusWiden(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -173,6 +181,7 @@ public static class SpanModulusKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void ModulusWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -309,6 +318,7 @@ public static class SpanModulusKernel
     }
 
     /// <inheritdoc cref="Modulus(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, ReadOnlySpan{ulong}, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Modulus(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -346,6 +356,7 @@ public static class SpanModulusKernel
     }
 
     /// <inheritdoc cref="Modulus(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, ReadOnlySpan{ulong}, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Modulus(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -420,6 +431,7 @@ public static class SpanModulusKernel
     }
 
     /// <inheritdoc cref="Modulus(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, ReadOnlySpan{ulong}, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int ModulusWiden(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -457,6 +469,7 @@ public static class SpanModulusKernel
     }
 
     /// <inheritdoc cref="Modulus(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, ReadOnlySpan{ulong}, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int ModulusWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -551,6 +564,7 @@ public static class SpanModulusKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Modulus(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,
@@ -578,6 +592,7 @@ public static class SpanModulusKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Modulus(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         Int256 right, DecimalType rightType,

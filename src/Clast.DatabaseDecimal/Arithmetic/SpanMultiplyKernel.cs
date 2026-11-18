@@ -18,6 +18,12 @@ namespace Clast.DatabaseDecimal.Arithmetic;
 /// per call, not per element.
 /// The result span may safely overlap with either input span (when types match).
 /// </summary>
+/// <remarks>
+/// The entry points that produce 128- or 256-bit results are marked
+/// <see cref="MethodImplOptions.NoInlining"/>, for the reason given on
+/// <see cref="SpanDivideKernel"/>. On .NET 10 a 128-bit multiply with a
+/// rescale ran 2.5x faster out of line.
+/// </remarks>
 public static class SpanMultiplyKernel
 {
     // ================================================================
@@ -52,6 +58,7 @@ public static class SpanMultiplyKernel
     }
 
     /// <summary>64×64 → 128 bit widening multiply.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Multiply(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -80,6 +87,7 @@ public static class SpanMultiplyKernel
     }
 
     /// <summary>128×128 → 256 bit widening multiply via Int256.BigMul.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void MultiplyWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -117,6 +125,7 @@ public static class SpanMultiplyKernel
     /// is not the same as reducing an operand's scale first: precision clamping
     /// can demand more digits than an operand has, which would zero it.
     /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Multiply(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -151,6 +160,7 @@ public static class SpanMultiplyKernel
     /// 256-bit <see cref="MultiplyKernel"/>.<c>Multiply</c> overload for the
     /// accuracy caveat.
     /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Multiply(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -222,6 +232,7 @@ public static class SpanMultiplyKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Multiply(
         ReadOnlySpan<long> left, DecimalType leftType,
         long right, DecimalType rightType,
@@ -250,6 +261,7 @@ public static class SpanMultiplyKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Multiply(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,

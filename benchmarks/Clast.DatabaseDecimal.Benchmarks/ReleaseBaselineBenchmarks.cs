@@ -82,6 +82,10 @@ public class ReleaseBaselineBenchmarks
     [Benchmark] public void Add128_RescaleUp() => SpanAddKernel.Add(_i128L, T128S2, _i128R, T128S4, _i128Out, T128S4);
     [Benchmark] public void Add256_RescaleUp() => SpanAddKernel.Add(_i256L, T256S2, _i256R, T256S4, _i256Out, T256S4);
 
+    // --- add, result scale below the operands': both sides round through DivideRound ---
+    [Benchmark] public void Add128_RescaleDown() => SpanAddKernel.Add(_i128L, T128S4, _i128R, T128S4, _i128Out, T128S2);
+    [Benchmark] public void Add256_RescaleDown() => SpanAddKernel.Add(_i256L, T256S4, _i256R, T256S4, _i256Out, T256S2);
+
     // --- multiply ---
     [Benchmark] public void Mul64To128_Rescale() => SpanMultiplyKernel.Multiply(_i64L, T64S2, _i64R, T64S2, _i128Out, T128S2);
     [Benchmark] public void Mul128_SameWidth_Rescale() => SpanMultiplyKernel.Multiply(_i128L, T128S2, _i128R, T128S2, _i128Out, T128S2);
@@ -90,4 +94,8 @@ public class ReleaseBaselineBenchmarks
     [Benchmark] public void Div32To64() => SpanDivideKernel.Divide(_i32L, T32S2, _i32R, T32S2, _i64Out, T64S4);
     [Benchmark] public void Div128_SameWidth() => SpanDivideKernel.Divide(_i128L, T128S2, _i128R, T128S2, _i128Out, T128S4);
     [Benchmark] public void Div256_SameWidth() => SpanDivideKernel.Divide(_i256L, T256S2, _i256R, T256S2, _i256Out, T256S4);
+
+    // --- modulus: a software remainder per element, with and without a rescale ---
+    [Benchmark] public void Mod128_SameScale() => SpanModulusKernel.Modulus(_i128L, T128S2, _i128R, T128S2, _i128Out, T128S2);
+    [Benchmark] public void Mod128_RescaleUp() => SpanModulusKernel.Modulus(_i128L, T128S2, _i128R, T128S4, _i128Out, T128S4);
 }

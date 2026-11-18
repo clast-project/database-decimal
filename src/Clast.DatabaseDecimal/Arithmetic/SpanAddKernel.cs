@@ -22,6 +22,15 @@ namespace Clast.DatabaseDecimal.Arithmetic;
 /// second half. Reaching that case at all takes a deliberate
 /// <see cref="System.Runtime.InteropServices.MemoryMarshal"/> reinterpretation
 /// of one buffer as both element types, since the spans are differently typed.
+/// <para>
+/// The entry points that take or return 128- or 256-bit spans are marked
+/// <see cref="MethodImplOptions.NoInlining"/>, for the reason given on
+/// <see cref="SpanDivideKernel"/>: inlined into a caller, they exhausted its
+/// inlining budget and left the wide-integer operators in the loop as calls.
+/// On .NET 10 that cost 2.2x on a 128-bit add with a scale-down and 2.6x on a
+/// 256-bit add with a scale-up. The 32- and 64-bit entry points are left
+/// alone: their vectorised loops measured up to 2.8x slower out of line.
+/// </para>
 /// </remarks>
 public static class SpanAddKernel
 {
@@ -89,6 +98,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Add(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -117,6 +127,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Add(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -179,6 +190,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void AddWiden(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -199,6 +211,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void AddWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -281,6 +294,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Add(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,
@@ -308,6 +322,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Add(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         Int256 right, DecimalType rightType,
@@ -399,6 +414,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Subtract(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -427,6 +443,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Subtract(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -489,6 +506,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void SubtractWiden(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -509,6 +527,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void SubtractWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -591,6 +610,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Subtract(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         Int128 right, DecimalType rightType,
@@ -618,6 +638,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, left.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Subtract(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         Int256 right, DecimalType rightType,
@@ -707,6 +728,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Subtract(
         Int128 left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -734,6 +756,7 @@ public static class SpanAddKernel
             DecimalRange.Validate(result.Slice(0, right.Length), resultType);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Subtract(
         Int256 left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -857,6 +880,7 @@ public static class SpanAddKernel
     }
 
     /// <inheritdoc cref="Add(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Add(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -895,6 +919,7 @@ public static class SpanAddKernel
     }
 
     /// <inheritdoc cref="Add(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Add(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -962,6 +987,7 @@ public static class SpanAddKernel
     }
 
     /// <inheritdoc cref="Add(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int AddWiden(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -988,6 +1014,7 @@ public static class SpanAddKernel
     }
 
     /// <inheritdoc cref="Add(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int AddWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -1094,6 +1121,7 @@ public static class SpanAddKernel
     }
 
     /// <inheritdoc cref="Subtract(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Subtract(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
@@ -1132,6 +1160,7 @@ public static class SpanAddKernel
     }
 
     /// <inheritdoc cref="Subtract(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Subtract(
         ReadOnlySpan<Int256> left, DecimalType leftType,
         ReadOnlySpan<Int256> right, DecimalType rightType,
@@ -1199,6 +1228,7 @@ public static class SpanAddKernel
     }
 
     /// <inheritdoc cref="Subtract(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int SubtractWiden(
         ReadOnlySpan<long> left, DecimalType leftType,
         ReadOnlySpan<long> right, DecimalType rightType,
@@ -1225,6 +1255,7 @@ public static class SpanAddKernel
     }
 
     /// <inheritdoc cref="Subtract(ReadOnlySpan{int}, DecimalType, ReadOnlySpan{int}, DecimalType, Span{int}, DecimalType, Span{ulong}, DecimalRounding)"/>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int SubtractWiden(
         ReadOnlySpan<Int128> left, DecimalType leftType,
         ReadOnlySpan<Int128> right, DecimalType rightType,
