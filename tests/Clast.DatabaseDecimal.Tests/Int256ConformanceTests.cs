@@ -222,6 +222,116 @@ public class Int256ConformanceTests
         }
     }
 
+    // ================================================================
+    // Division by a divisor below 2^64 — the limb-wise path. The corpus above
+    // holds few such divisors, and none chosen to stress the digit estimate.
+    // ================================================================
+
+    /// <summary>
+    /// Divisors that exercise every normalisation shift and both correction
+    /// loops of the 128-by-64 step: the powers of ten the rescales use, values
+    /// either side of each power of two, and divisors whose low 32-bit digit is
+    /// all ones or zero, which push the digit estimate furthest off.
+    /// </summary>
+    private static IReadOnlyList<ulong> SmallDivisors()
+    {
+        var divisors = new List<ulong> { 1, 2, 3, 7, 10, ulong.MaxValue, ulong.MaxValue - 1 };
+        ulong power = 1;
+        for (int i = 0; i <= 19; i++)
+        {
+            divisors.Add(power);
+            if (i < 19) power *= 10;
+        }
+        for (int k = 1; k < 64; k++)
+        {
+            ulong p = 1UL << k;
+            divisors.Add(p);
+            divisors.Add(p - 1);
+            divisors.Add(p + 1);
+        }
+        divisors.Add(0x8000_0000_0000_0001UL);
+        divisors.Add(0x8000_0000_FFFF_FFFFUL);
+        divisors.Add(0xFFFF_FFFF_0000_0000UL);
+        divisors.Add(0x0000_0001_FFFF_FFFFUL);
+        divisors.Add(0x0000_0001_0000_0000UL);
+        divisors.Add(0x7FFF_FFFF_8000_0000UL);
+
+        var rng = new Random(20261117);
+        byte[] buffer = new byte[8];
+        for (int i = 0; i < 40; i++)
+        {
+            rng.NextBytes(buffer);
+            ulong value = BitConverter.ToUInt64(buffer, 0) >> rng.Next(64);
+            if (value != 0) divisors.Add(value);
+        }
+
+        return divisors.Distinct().ToList();
+    }
+
+    [Fact]
+    public void UInt256_DivideBySmallDivisor()
+    {
+        // Dividends built to sit just below and at multiples of the divisor, so
+        // every limb's partial remainder is as large as it can be.
+        IReadOnlyList<ulong> divisors = SmallDivisors();
+        var dividends = new List<BigInteger>(Unsigned);
+        BigInteger max = Width - 1;
+        dividends.Add(max);
+        dividends.Add(max >> 64);
+        dividends.Add(max >> 128);
+
+        foreach (ulong d in divisors)
+        {
+            var divisor = new BigInteger(d);
+            UInt256 y = NumericOracle.ToUInt256(divisor);
+            var cases = new List<BigInteger>(dividends)
+            {
+                max - (max % divisor),
+                max - (max % divisor) - 1,
+                // Below 2^128 with the largest remainder, so the top limbs are zero.
+                ((max >> 128) / divisor) * divisor - 1,
+            };
+
+            foreach (BigInteger a in cases)
+            {
+                if (a.Sign < 0) continue;
+                UInt256 x = NumericOracle.ToUInt256(a);
+                var (q, r) = UInt256.DivRem(x, y);
+                AssertUnsigned(a / divisor, q, $"{a} / {d}");
+                AssertUnsigned(a % divisor, r, $"{a} % {d}");
+            }
+        }
+    }
+
+    [Fact]
+    public void UInt256_DivRem128By64()
+    {
+        var rng = new Random(1117);
+        byte[] buffer = new byte[8];
+        foreach (ulong d in SmallDivisors())
+        {
+            var divisor = new BigInteger(d);
+            // high must be below the divisor. Take the extremes and a spread.
+            var highs = new List<ulong> { 0, d - 1, (d - 1) / 2, d > 1 ? d - 2 : 0 };
+            for (int i = 0; i < 8; i++)
+            {
+                rng.NextBytes(buffer);
+                highs.Add(BitConverter.ToUInt64(buffer, 0) % d);
+            }
+
+            foreach (ulong high in highs.Distinct())
+            {
+                foreach (ulong low in new[] { 0UL, 1UL, ulong.MaxValue, 0x8000_0000_0000_0000UL, 0x0000_0000_FFFF_FFFFUL, 0xFFFF_FFFF_0000_0000UL })
+                {
+                    BigInteger n = (new BigInteger(high) << 64) + low;
+                    ulong q = UInt256.DivRem128By64(high, low, d, out ulong r);
+                    Assert.True(n / divisor == q && n % divisor == r,
+                        $"{high}:{low} / {d}: expected {n / divisor} r {n % divisor}, got {q} r {r}");
+                }
+            }
+        }
+    }
+
     [Fact]
     public void UInt256_Shifts()
     {
