@@ -54,6 +54,22 @@ internal static class MathCompat
     }
 
     /// <summary>
+    /// Counts the set bits in a 64-bit value.
+    /// </summary>
+    public static int PopCount(ulong value)
+    {
+#if NETSTANDARD2_0
+        // SWAR: sum bits in pairs, then nibbles, then fold the byte sums.
+        value -= (value >> 1) & 0x5555555555555555UL;
+        value = (value & 0x3333333333333333UL) + ((value >> 2) & 0x3333333333333333UL);
+        value = (value + (value >> 4)) & 0x0F0F0F0F0F0F0F0FUL;
+        return (int)((value * 0x0101010101010101UL) >> 56);
+#else
+        return System.Numerics.BitOperations.PopCount(value);
+#endif
+    }
+
+    /// <summary>
     /// Counts the trailing zero bits in a 64-bit value. Returns 64 for zero.
     /// </summary>
     public static int TrailingZeroCount(ulong value)
