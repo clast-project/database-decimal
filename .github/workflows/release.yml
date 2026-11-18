@@ -11,6 +11,7 @@ jobs:
 
     permissions:
       contents: write   # required for creating GitHub Releases
+      id-token: write   # required for NuGet Trusted Publishing (OIDC)
 
     steps:
       - name: Checkout
@@ -46,15 +47,21 @@ jobs:
       - name: Pack
         run: dotnet pack src/Clast.DatabaseDecimal/Clast.DatabaseDecimal.csproj --no-build --configuration Release -p:Version=${{ steps.version.outputs.version }}
 
+      # Trusted Publishing: exchange this run's GitHub OIDC token for a
+      # short-lived nuget.org API key. The nuget.org policy is bound to this
+      # repository and to this workflow file, so renaming release.yml needs
+      # the policy updated too. No long-lived key is stored in the repo.
+      - name: NuGet login
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: curt_hagenlocher
+
       - name: Push to NuGet
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         shell: pwsh
         run: |
-          if (-not $env:NUGET_API_KEY) {
-            Write-Error "NUGET_API_KEY secret is not configured."
-            exit 1
-          }
           dotnet nuget push "src/Clast.DatabaseDecimal/bin/Release/Clast.DatabaseDecimal.${{ steps.version.outputs.version }}.nupkg" --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub Release
