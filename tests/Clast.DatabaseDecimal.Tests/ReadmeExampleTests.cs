@@ -15,7 +15,7 @@ namespace Clast.DatabaseDecimal.Tests;
 /// <remarks>
 /// Twice now a README snippet has shipped that could not compile — once calling
 /// a parse overload that does not exist, once using an undeclared variable and
-/// an <c>Int128.Parse</c> the netstandard2.0 polyfill does not implement. Prose
+/// an <c>Int128.Parse</c> the netstandard2.0 polyfill did not then implement. Prose
 /// is not built, so nothing caught either. Mirroring the snippets here puts them
 /// through the compiler on every target, and asserting the values in their
 /// trailing comments keeps those honest too.
