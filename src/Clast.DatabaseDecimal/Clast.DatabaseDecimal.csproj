@@ -48,7 +48,11 @@
 
   <ItemGroup>
     <PackageReference Include="System.IO.Hashing" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
+    <!-- SourceLink comes from the SDK (built in since .NET 8), not a package
+         reference: the package pinned a vulnerable Microsoft.Build.Tasks.Git
+         (8.0.0), and its 10.x line pulls System.IO.Hashing 10 into the graph,
+         clashing with the 9.0.0 this library ships against. The SDK copy is
+         patched with the SDK. -->
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
