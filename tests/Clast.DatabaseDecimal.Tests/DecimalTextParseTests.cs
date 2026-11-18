@@ -278,7 +278,9 @@ public class DecimalTextParseTests
         for (var i = 0; i < 20_000; i++)
         {
             var bytes = new List<byte>();
-            var n = rng.Next(0, i % 100 == 0 ? 120 : 8); // now and then past the stack buffer
+            // Now and then past the stack buffer: every piece is at least one byte, so 257+ pieces
+            // always decode into a pooled array.
+            var n = i % 100 == 0 ? rng.Next(257, 400) : rng.Next(0, 8);
             for (var k = 0; k < n; k++)
             {
                 bytes.AddRange(pieces[rng.Next(2) == 0 ? rng.Next(3) : rng.Next(pieces.Length)]);
@@ -304,6 +306,21 @@ public class DecimalTextParseTests
                 Assert.True(DecimalText.TryParseDecimal32(utf8, type, out var b32) == DecimalText.TryParseDecimal32(text, type, out var c32) && b32.Equals(c32), $"32 [{hex}]");
             }
         }
+    }
+
+    [Fact]
+    public void Parse_Utf8_LongNonAsciiInput_DecodesIntoPooledBuffer()
+    {
+        // Past the stack buffer and not ASCII, so this takes the pooled-array Encoding.UTF8 path.
+        var type = DecimalType.Numeric(10, 2);
+        var bytes = new List<byte>();
+        for (var k = 0; k < 200; k++) bytes.AddRange(new byte[] { 0xC2, 0xA0 }); // U+00A0
+        bytes.AddRange("-12.34"u8.ToArray());
+        for (var k = 0; k < 100; k++) bytes.AddRange(new byte[] { 0xE2, 0x80, 0x83 }); // U+2003
+        Assert.Equal(-1234, DecimalText.ParseDecimal64(bytes.ToArray(), type).Mantissa);
+
+        bytes.Add(0xA0); // a trailing malformed byte still rejects
+        Assert.False(DecimalText.TryParseDecimal64(bytes.ToArray(), type, out _));
     }
 
     [Fact]

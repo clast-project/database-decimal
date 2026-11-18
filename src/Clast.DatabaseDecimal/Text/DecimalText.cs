@@ -269,17 +269,21 @@ public static class DecimalText
         for (; i < utf8.Length && utf8[i] < 0x80; i++) chars[i] = (char)utf8[i];
         if (i == utf8.Length) return i;
 
+        // Decode only the rest. No multi-byte sequence can start inside an all-ASCII prefix, so
+        // decoding from i gives the same result as decoding the whole input.
+        var rest = utf8.Slice(i);
+        var dest = chars.Slice(i);
 #if NETSTANDARD2_0
         unsafe
         {
-            fixed (byte* src = utf8)
-            fixed (char* dst = chars)
+            fixed (byte* src = rest)
+            fixed (char* dst = dest)
             {
-                return Encoding.UTF8.GetChars(src, utf8.Length, dst, chars.Length);
+                return i + Encoding.UTF8.GetChars(src, rest.Length, dst, dest.Length);
             }
         }
 #else
-        return Encoding.UTF8.GetChars(utf8, chars);
+        return i + Encoding.UTF8.GetChars(rest, dest);
 #endif
     }
 
