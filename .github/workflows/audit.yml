@@ -18,7 +18,9 @@ permissions:
 
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    # Windows: the test project adds net472 only when $(OS) is Windows_NT, so
+    # restoring elsewhere would skip (and not audit) that dependency graph.
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
 
