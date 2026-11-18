@@ -291,6 +291,15 @@ public static class DecimalRange
 
     // ================================================================
     // Batch — locate the first offender
+    //
+    // The Int128 and Int256 overloads are NoInlining, for the reason given on
+    // SpanDivideKernel. Validate is small enough to inline into the wide span
+    // kernels, and this loop came with it: inside an already large kernel body
+    // the JIT ran out of inlining budget, and on .NET 8 the wide compares were
+    // left as calls per element. Out of line, the same loop costs about what
+    // WriteOutOfRangeMask does. On .NET 8 that took the check on a 256-bit
+    // add from ~150 us to ~45 us over 65536 elements, with no change on
+    // .NET 10 (issue #11).
     // ================================================================
 
     /// <summary>Index of the first element outside the type's precision, or -1.</summary>
@@ -318,6 +327,7 @@ public static class DecimalRange
     }
 
     /// <summary>Index of the first element outside the type's precision, or -1.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int IndexOfOutOfRange(ReadOnlySpan<Int128> values, DecimalType type)
     {
         if (!TryGetBound(type, out Int128 bound)) return -1;
@@ -331,6 +341,7 @@ public static class DecimalRange
     }
 
     /// <summary>Index of the first element outside the type's precision, or -1.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int IndexOfOutOfRange(ReadOnlySpan<Int256> values, DecimalType type)
     {
         if (!TryGetBound(type, out Int256 bound)) return -1;
