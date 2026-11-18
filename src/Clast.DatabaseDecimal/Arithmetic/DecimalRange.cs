@@ -332,6 +332,21 @@ public static class DecimalRange
     {
         if (!TryGetBound(type, out Int128 bound)) return -1;
         Int128 lower = -bound;
+
+        long h = TopLimbScreen(bound - Int128.One);
+        if (h > 0)
+        {
+            ReadOnlySpan<long> limbs = MemoryMarshal.Cast<Int128, long>(values);
+            for (int i = 0; i < values.Length; i++)
+            {
+                long top = limbs[2 * i + 1];
+                if (top > -h && top < h) continue;
+                Int128 v = values[i];
+                if (v <= lower || v >= bound) return i;
+            }
+            return -1;
+        }
+
         for (int i = 0; i < values.Length; i++)
         {
             Int128 v = values[i];
@@ -346,6 +361,22 @@ public static class DecimalRange
     {
         if (!TryGetBound(type, out Int256 bound)) return -1;
         Int256 lower = -bound;
+        Int256 max = bound - Int256.One;
+
+        long h = TopLimbScreen(max);
+        if (h > 0)
+        {
+            ReadOnlySpan<long> limbs = MemoryMarshal.Cast<Int256, long>(values);
+            for (int i = 0; i < values.Length; i++)
+            {
+                long top = limbs[4 * i + 3];
+                if (top > -h && top < h) continue;
+                Int256 v = values[i];
+                if (v <= lower || v >= bound) return i;
+            }
+            return -1;
+        }
+
         for (int i = 0; i < values.Length; i++)
         {
             Int256 v = values[i];
@@ -353,6 +384,33 @@ public static class DecimalRange
         }
         return -1;
     }
+
+    // ================================================================
+    // Top-limb screens for the wide widths.
+    //
+    // Write max = 10^p - 1 as H·2^k + L with 0 <= L < 2^k, where the top part
+    // of an element v is t = v >> k (arithmetic). If -H < t < H then
+    //     v <= (H-1)·2^k + 2^k - 1 = H·2^k - 1 <= max, and
+    //     v >= (1-H)·2^k > -H·2^k >= -max,
+    // so v is certainly in range. Only elements that fail the screen need the
+    // full-width comparison. Comparing one 64-bit limb instead of two (or
+    // four) is the whole saving: the full Int128/Int256 compares dominated
+    // the range check on the wide tiers (issue #11).
+    //
+    // The screen reads the top part straight out of memory, which assumes the
+    // little-endian layout of Int128 (BCL and polyfill) and of Int256's
+    // UInt128 halves. Elsewhere, and whenever H is zero (a precision too
+    // small for the top part to carry any of max), it reports 0 and callers
+    // take the exact loop.
+    // ================================================================
+
+    /// <summary>Top 64 bits of a positive Int128 bound, or 0 when the screen cannot apply.</summary>
+    private static long TopLimbScreen(Int128 max) =>
+        BitConverter.IsLittleEndian ? (long)(ulong)(max >> 64) : 0L;
+
+    /// <summary>Top 64 bits of a positive Int256 bound, or 0 when the screen cannot apply.</summary>
+    private static long TopLimbScreen(Int256 max) =>
+        BitConverter.IsLittleEndian ? (long)(ulong)(max.Upper >> 64) : 0L;
 
     // ================================================================
     // Batch — flag every offender
